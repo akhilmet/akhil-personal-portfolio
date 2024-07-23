@@ -7,7 +7,7 @@ import ThemeSwitch from "@/components/theme-switch";
 import ThemeContextProvider from "@/context/theme-context";
 import { Toaster } from "react-hot-toast";
 import Head from "next/head";
-import { BsLinkedin, BsGithub, BsEnvelope } from 'react-icons/bs';
+import { BsLinkedin, BsGithub } from 'react-icons/bs';
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -18,7 +18,7 @@ export const metadata = {
 
 const SideLinks = () => (
   <>
-    <div className="fixed left-4 bottom-0 flex flex-col items-center z-50">
+    <div className="fixed left-4 bottom-0 flex flex-col items-center z-50 hidden md:flex">
       <a href="https://linkedin.com/in/akmet" target="_blank" rel="noopener noreferrer" className="mb-4 text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white">
         <BsLinkedin size={24} />
       </a>
@@ -27,9 +27,9 @@ const SideLinks = () => (
       </a>
       <div className="w-0.5 h-24 bg-gray-300 dark:bg-gray-700"></div>
     </div>
-    <div className="fixed right-4 bottom-0 flex flex-col items-center z-50">
-      <a href="mailto:akhil.metukuru2016@gmail.com" className="vertical-text mb-4 text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white">
-        <BsEnvelope size={24} />
+    <div className="fixed right-4 bottom-0 flex flex-col items-center z-50 hidden md:flex">
+      <a href="mailto:akhil.metukuru2016@gmail.com" className="vertical-text mb-4 text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white text-sm">
+        akhil.metukuru2016@gmail.com
       </a>
       <div className="w-0.5 h-24 bg-gray-300 dark:bg-gray-700"></div>
     </div>
@@ -55,6 +55,9 @@ export default function RootLayout({
 
         <ThemeContextProvider>
           <ActiveSectionContextProvider>
+            <div className="fixed top-4 left-4 z-50">
+              <ThemeSwitch />
+            </div>
             <Header />
             <SideLinks />
             <main className="px-4 sm:px-8 md:px-16 lg:px-24">
@@ -63,7 +66,6 @@ export default function RootLayout({
             <Footer />
 
             <Toaster position="top-right" />
-            <ThemeSwitch />
           </ActiveSectionContextProvider>
         </ThemeContextProvider>
       </body>
