@@ -2,9 +2,9 @@ import React from "react";
 import { CgWorkAlt } from "react-icons/cg";
 import { FaReact } from "react-icons/fa";
 import { LuGraduationCap } from "react-icons/lu";
-import corpcommentImg from "@/public/corpcomment.png";
-import rmtdevImg from "@/public/rmtdev.png";
-import wordanalyticsImg from "@/public/wordanalytics.png";
+import nbaImg from "@/public/nba.png";
+import skycastImg from "@/public/skycast.png";
+import marylandImg from "@/public/maryland.png";
 
 export const links = [
   {
@@ -66,21 +66,21 @@ export const projectsData = [
     description:
       "Built a model to predict game outcomes using player and team data, achieving high accuracy.",
     tags: ["Python", "Pandas", "Scikit-Learn"],
-    imageUrl: corpcommentImg,
+    imageUrl: nbaImg,
   },
   {
     title: "SkyCast: Flight Delay Predictor",
     description:
       "Developed an app to predict flight delays using real-time weather data, with a mean absolute error of 1.48 minutes.",
     tags: ["Flask", "React", "Pandas", "Scikit-Learn"],
-    imageUrl: rmtdevImg,
+    imageUrl: skycastImg,
   },
   {
     title: "University Registration System",
     description:
       "Built a scalable course registration system with improved performance and reliability.",
     tags: ["Java", "Multi-threading"],
-    imageUrl: wordanalyticsImg,
+    imageUrl: marylandImg,
   },
 ] as const;
 
