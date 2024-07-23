@@ -29,8 +29,8 @@ export default function About() {
       </p>
 
       <p>
-        <span className="italic">When I'm not coding</span>, you can find me weightlifting, running outdoors,
-        experimenting with new recipes in the kitchen, or spending time with foster cats.
+        <span className="italic">When I'm not coding</span>, you can find me weightlifting, playing basketball,
+        experimenting with new recipes in the kitchen, or spending time with my dog.
         I'm always looking to learn new technologies and improve my skills.
       </p>
     </motion.section>

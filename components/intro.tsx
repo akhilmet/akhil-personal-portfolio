@@ -62,14 +62,14 @@ export default function Intro() {
         initial={{ opacity: 0, y: 100 }}
         animate={{ opacity: 1, y: 0 }}
       >
-        <span className="font-bold">Hello, I'm Akhil Metukuru.</span> I'm a rising junior at the University of Maryland studying <span className="font-bold">Computer Science</span> with a focus on{" "}
+        <span className="font-bold">Hello, I'm Akhil Metukuru.</span> I'm a{" "}
         <TypeAnimation
           sequence={[
-            'Machine Learning',
+            'Software Engineer',
             2000,
-            'Artificial Intelligence',
+            'Full Stack Developer',
             2000,
-            'Data Science',
+            'Problem-Solver',
             2000,
           ]}
           wrapper="span"
