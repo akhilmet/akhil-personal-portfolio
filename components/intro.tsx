@@ -18,104 +18,78 @@ export default function Intro() {
     <section
       ref={ref}
       id="home"
-      className="mb-28 max-w-[50rem] text-center sm:mb-0 scroll-mt-[100rem]"
+      className="relative h-screen flex items-center justify-center bg-gradient-to-br from-green-800 to-blue-900 text-white"
     >
-      <div className="flex items-center justify-center">
-        <div className="relative">
-          <motion.div
-            initial={{ opacity: 0, scale: 0 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{
-              type: "tween",
-              duration: 0.2,
-            }}
-          >
-            <Image
-              src="/profile-pic.png"
-              alt="Akhil Metukuru"
-              width="192"
-              height="192"
-              quality="95"
-              priority={true}
-              className="h-24 w-24 rounded-full object-cover border-[0.35rem] border-white shadow-xl"
-            />
-          </motion.div>
-
-          <motion.span
-            className="absolute bottom-0 right-0 text-4xl"
-            initial={{ opacity: 0, scale: 0 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{
-              type: "spring",
-              stiffness: 125,
-              delay: 0.1,
-              duration: 0.7,
-            }}
-          >
-            👋
-          </motion.span>
-        </div>
+      <div className="text-center">
+        <motion.h1
+          className="text-5xl font-bold mb-4"
+          initial={{ opacity: 0, y: -50 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          Nice to meet you! 👋
+        </motion.h1>
+        <motion.h2
+          className="text-6xl font-extrabold mb-4"
+          initial={{ opacity: 0, y: -30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+        >
+          I'm Akhil
+        </motion.h2>
+        <motion.div
+          className="text-3xl font-semibold mb-8"
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.4 }}
+        >
+          A{" "}
+          <TypeAnimation
+            sequence={[
+              'Software Engineer',
+              1500,
+              'Full-Stack Developer',
+              1500,
+              'Problem-Solver',
+              1500,
+            ]}
+            wrapper="span"
+            speed={50}
+            className="font-bold text-yellow-300"
+            repeat={Infinity}
+          />
+        </motion.div>
       </div>
 
-      <motion.h1
-        className="mb-10 mt-4 px-4 text-2xl font-medium !leading-[1.5] sm:text-4xl"
-        initial={{ opacity: 0, y: 100 }}
-        animate={{ opacity: 1, y: 0 }}
-      >
-        <span className="font-bold">Hello, I'm Akhil Metukuru.</span> I'm a rising junior at the University of Maryland studying <span className="font-bold">Computer Science</span> with a focus on{" "}
-        <TypeAnimation
-          sequence={[
-            'Machine Learning',
-            2000,
-            'Artificial Intelligence',
-            2000,
-            'Data Science',
-            2000,
-          ]}
-          wrapper="span"
-          speed={50}
-          className="font-bold underline"
-          repeat={Infinity}
-        />
-        .
-      </motion.h1>
-
       <motion.div
-        className="flex flex-col sm:flex-row items-center justify-center gap-2 px-4 text-lg font-medium"
-        initial={{ opacity: 0, y: 100 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{
-          delay: 0.1,
-        }}
+        className="absolute right-20 top-1/2 transform -translate-y-1/2"
+        initial={{ opacity: 0, x: 50 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.5, delay: 0.6 }}
       >
-        <Link
-          href="#contact"
-          className="group bg-gray-900 text-white px-7 py-3 flex items-center gap-2 rounded-full outline-none focus:scale-110 hover:scale-110 hover:bg-gray-950 active:scale-105 transition"
-          onClick={() => {
-            setActiveSection("Contact");
-            setTimeOfLastClick(Date.now());
-          }}
-        >
-          Contact me here{" "}
-          <BsArrowRight className="opacity-70 group-hover:translate-x-1 transition" />
-        </Link>
-
-        <a
-          className="bg-white p-4 text-gray-700 hover:text-gray-950 flex items-center gap-2 rounded-full focus:scale-[1.15] hover:scale-[1.15] active:scale-105 transition cursor-pointer borderBlack dark:bg-white/10 dark:text-white/60"
-          href="https://linkedin.com/in/akmet"
-          target="_blank"
-        >
-          <BsLinkedin />
-        </a>
-
-        <a
-          className="bg-white p-4 text-gray-700 flex items-center gap-2 text-[1.35rem] rounded-full focus:scale-[1.15] hover:scale-[1.15] hover:text-gray-950 active:scale-105 transition cursor-pointer borderBlack dark:bg-white/10 dark:text-white/60"
-          href="https://github.com/akhilmet"
-          target="_blank"
-        >
-          <FaGithubSquare />
-        </a>
+        <div className="relative group">
+          <Image
+            src="/profile-pic.png"
+            alt="Akhil Metukuru"
+            width={300}
+            height={300}
+            className="rounded-full object-cover transition-transform duration-300 group-hover:scale-105"
+          />
+          <div className="absolute inset-0 rounded-full bg-gradient-to-r from-blue-400 to-green-400 opacity-0 group-hover:opacity-30 transition-opacity duration-300" />
+        </div>
       </motion.div>
+
+      <nav className="absolute top-4 left-1/2 transform -translate-x-1/2">
+        <ul className="flex space-x-4">
+          {["Home", "About", "Skills", "Experience", "Projects", "Contact"].map((item) => (
+            <li key={item}>
+              <Link href={`#${item.toLowerCase()}`} className="text-white hover:text-yellow-300 transition-colors">
+                {item}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </nav>
     </section>
   );
 }
