@@ -64,21 +64,21 @@ export const projectsData = [
   {
     title: "NBA Game Predictor",
     description:
-      "Built a machine learning model with advanced feature engineering, data cleaning, and dimensional reduction. Collected and processed player-level and team-level data from open-source APIs, creating features representing team averages over the previous 5, 10, and 15 games. Implemented dimensionality reduction using Principal Component Analysis (PCA) and trained models including Random Forest and Logistic Regression, achieving high prediction accuracy and generating insightful evaluation.",
+      "Built a model to predict game outcomes using player and team data, achieving high accuracy.",
     tags: ["Python", "Pandas", "Scikit-Learn"],
     imageUrl: corpcommentImg,
   },
   {
     title: "SkyCast: Flight Delay Predictor",
     description:
-      "Developed a Flask-based application that harnesses the Open-Meteo API to predict flight delays by analyzing 5 real-time weather metrics: temperature, precipitation, wind speed, pressure, and visibility. Engineered a RandomForestRegressor model, achieving a mean absolute error (MAE) of 1.48 minutes. Designed a scalable React interface for dynamic user interaction; integrated with a Flask backend to handle over 33,000 API calls daily, ensuring application robustness and efficient traffic management.",
+      "Developed an app to predict flight delays using real-time weather data, with a mean absolute error of 1.48 minutes.",
     tags: ["Flask", "React", "Pandas", "Scikit-Learn"],
     imageUrl: rmtdevImg,
   },
   {
     title: "University Registration System",
     description:
-      "Built a scalable system for course registration, allowing addition and cancellation of courses. Implemented sets and multi-threading to improve performance and developed error handling for reliable operation.",
+      "Built a scalable course registration system with improved performance and reliability.",
     tags: ["Java", "Multi-threading"],
     imageUrl: wordanalyticsImg,
   },
