@@ -6,8 +6,7 @@ import Footer from "@/components/footer";
 import ThemeSwitch from "@/components/theme-switch";
 import ThemeContextProvider from "@/context/theme-context";
 import { Toaster } from "react-hot-toast";
-import Head from "next/head";
-import { BsLinkedin, BsGithub } from 'react-icons/bs';
+import Head from "next/head"; // Import Head from next/head
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -15,26 +14,6 @@ export const metadata = {
   title: "Akhil | Personal Portfolio",
   description: "Akhil is a full-stack developer.",
 };
-
-const SideLinks = () => (
-  <>
-    <div className="fixed left-4 bottom-0 flex flex-col items-center z-50 hidden md:flex">
-      <a href="https://linkedin.com/in/akmet" target="_blank" rel="noopener noreferrer" className="mb-4 text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white">
-        <BsLinkedin size={24} />
-      </a>
-      <a href="https://github.com/akhilmet" target="_blank" rel="noopener noreferrer" className="mb-4 text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white">
-        <BsGithub size={24} />
-      </a>
-      <div className="w-0.5 h-24 bg-gray-300 dark:bg-gray-700"></div>
-    </div>
-    <div className="fixed right-4 bottom-0 flex flex-col items-center z-50 hidden md:flex">
-      <a href="mailto:akhil.metukuru2016@gmail.com" className="vertical-text mb-4 text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white text-sm">
-        akhil.metukuru2016@gmail.com
-      </a>
-      <div className="w-0.5 h-24 bg-gray-300 dark:bg-gray-700"></div>
-    </div>
-  </>
-);
 
 export default function RootLayout({
   children,
@@ -55,17 +34,12 @@ export default function RootLayout({
 
         <ThemeContextProvider>
           <ActiveSectionContextProvider>
-            <div className="fixed top-4 left-4 z-50">
-              <ThemeSwitch />
-            </div>
             <Header />
-            <SideLinks />
-            <main className="px-4 sm:px-8 md:px-16 lg:px-24">
-              {children}
-            </main>
+            {children}
             <Footer />
 
             <Toaster position="top-right" />
+            <ThemeSwitch />
           </ActiveSectionContextProvider>
         </ThemeContextProvider>
       </body>
