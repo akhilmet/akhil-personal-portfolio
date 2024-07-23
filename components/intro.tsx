@@ -31,7 +31,7 @@ export default function Intro() {
             }}
           >
             <Image
-              src="/LinkedInProfilePicture.jpeg"
+              src="/profile-pic.png"
               alt="Akhil Metukuru"
               width="192"
               height="192"
