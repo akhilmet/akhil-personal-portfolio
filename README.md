@@ -34,7 +34,7 @@ Feel free to reach out to me through any of the platforms below. I'm always open
 - **Email:** [akhil.metukuru2016@gmail.com](mailto:akhil.metukuru2016@gmail.com)
 - **LinkedIn:** [linkedin.com/in/akmet](https://linkedin.com/in/akmet)
 - **GitHub:** [github.com/akhilmet](https://github.com/akhilmet)
-- **Website:** [akhilmet.com](https://akhilmet.com)
+- **Website:** [akhilmet.com](akhilmet.com)
 
 ## License
 
