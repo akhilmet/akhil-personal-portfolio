@@ -8,6 +8,7 @@ import { BsArrowRight, BsLinkedin } from "react-icons/bs";
 import { FaGithubSquare } from "react-icons/fa";
 import { useSectionInView } from "@/lib/hooks";
 import { useActiveSectionContext } from "@/context/active-section-context";
+import { TypeAnimation } from 'react-type-animation';
 
 export default function Intro() {
   const { ref } = useSectionInView("Home", 0.5);
@@ -61,7 +62,22 @@ export default function Intro() {
         initial={{ opacity: 0, y: 100 }}
         animate={{ opacity: 1, y: 0 }}
       >
-        <span className="font-bold">Hello, I'm Akhil Metukuru.</span> I'm a rising junior at the University of Maryland studying <span className="font-bold">Computer Science</span> with a focus on <span className="underline">Machine Learning</span>.
+        <span className="font-bold">Hello, I'm Akhil Metukuru.</span> I'm a rising junior at the University of Maryland studying <span className="font-bold">Computer Science</span> with a focus on{" "}
+        <TypeAnimation
+          sequence={[
+            'Machine Learning',
+            2000,
+            'Artificial Intelligence',
+            2000,
+            'Data Science',
+            2000,
+          ]}
+          wrapper="span"
+          speed={50}
+          className="font-bold underline"
+          repeat={Infinity}
+        />
+        .
       </motion.h1>
 
       <motion.div
