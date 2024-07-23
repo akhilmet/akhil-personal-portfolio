@@ -67,11 +67,11 @@ export default function Intro() {
         I'm a{" "}
         <TypeAnimation
           sequence={[
-            'Software Engineer',
+            'Software Engineer.',
             2000,
-            'Full-Stack Developer',
+            'Full-Stack Developer.',
             2000,
-            'Problem-Solver',
+            'Problem-Solver.',
             2000,
           ]}
           wrapper="span"
@@ -79,7 +79,6 @@ export default function Intro() {
           className="font-bold underline"
           repeat={Infinity}
         />
-        .
       </motion.h1>
 
       <motion.div
