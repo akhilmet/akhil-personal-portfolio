@@ -9,7 +9,6 @@ import { HiDownload } from "react-icons/hi";
 import { FaGithubSquare } from "react-icons/fa";
 import { useSectionInView } from "@/lib/hooks";
 import { useActiveSectionContext } from "@/context/active-section-context";
-import Typing from 'react-typing-animation';
 
 export default function Intro() {
   const { ref } = useSectionInView("Home", 0.5);
@@ -64,12 +63,10 @@ export default function Intro() {
         animate={{ opacity: 1, y: 0 }}
       >
         <span className="font-bold">Hello, I'm Akhil Metukuru.</span>{" "}
-        <Typing>
-          <span>I'm a rising junior at the University of Maryland studying </span>
-          <span className="font-bold">Computer Science</span>
-          <span> with a focus on </span>
-          <span className="underline">Machine Learning</span>.
-        </Typing>
+        I'm a rising junior at the University of Maryland studying{" "}
+        <span className="font-bold">Computer Science</span>
+        {" "}with a focus on{" "}
+        <span className="underline">Machine Learning</span>.
       </motion.h1>
 
       <motion.div
@@ -88,10 +85,8 @@ export default function Intro() {
             setTimeOfLastClick(Date.now());
           }}
         >
-          <Typing>
-            <span>Contact me here </span>
-            <BsArrowRight className="opacity-70 group-hover:translate-x-1 transition" />
-          </Typing>
+          Contact me here{" "}
+          <BsArrowRight className="opacity-70 group-hover:translate-x-1 transition" />
         </Link>
 
         <a
@@ -99,10 +94,8 @@ export default function Intro() {
           href="/CV.pdf"
           download
         >
-          <Typing>
-            <span>Download CV </span>
-            <HiDownload className="opacity-60 group-hover:translate-y-1 transition" />
-          </Typing>
+          Download CV{" "}
+          <HiDownload className="opacity-60 group-hover:translate-y-1 transition" />
         </a>
 
         <a
@@ -110,9 +103,7 @@ export default function Intro() {
           href="https://linkedin.com/in/akmet"
           target="_blank"
         >
-          <Typing>
-            <BsLinkedin />
-          </Typing>
+          <BsLinkedin />
         </a>
 
         <a
@@ -120,9 +111,7 @@ export default function Intro() {
           href="https://github.com/akhmet"
           target="_blank"
         >
-          <Typing>
-            <FaGithubSquare />
-          </Typing>
+          <FaGithubSquare />
         </a>
       </motion.div>
     </section>
