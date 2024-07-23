@@ -1,10 +1,13 @@
 import React from "react";
 import { CgWorkAlt } from "react-icons/cg";
-import { FaReact } from "react-icons/fa";
+import { FaReact, FaAws, FaJava } from "react-icons/fa";
 import { LuGraduationCap } from "react-icons/lu";
-import corpcommentImg from "@/public/corpcomment.png";
-import rmtdevImg from "@/public/rmtdev.png";
-import wordanalyticsImg from "@/public/wordanalytics.png";
+import { SiPython, SiTensorflow, SiR, SiFlask, SiPandas, SiScikitlearn, SiJavascript, SiCplusplus, SiC, SiSql, SiNodeDotJs, SiNextDotJs, SiAmazonaws, SiGithub, SiDocker, SiGit, SiJupyter, SiJira, SiMongodb, SiUnix, SiLinux } from "react-icons/si";
+import { IoSchool } from "react-icons/io5";
+
+import nbapredictorImg from "@/public/nbapredictor.png";
+import skycastImg from "@/public/skycast.png";
+import registrationImg from "@/public/registration.png";
 
 export const links = [
   {
@@ -35,73 +38,74 @@ export const links = [
 
 export const experiencesData = [
   {
-    title: "Graduated bootcamp",
-    location: "Miami, FL",
+    title: "Software Engineering Intern - Generative AI",
+    location: "Halvik, Vienna, VA",
     description:
-      "I graduated after 6 months of studying. I immediately found a job as a front-end developer.",
-    icon: React.createElement(LuGraduationCap),
-    date: "2019",
+      "Developed a Generative AI application tailored for document retrieval and proposal generation using AWS Bedrock. Improved document retrieval accuracy by 25% and increased proposal acceptance rate by 17%. Implemented efficient processing and management solutions using AWS S3 and Lambda, reducing latency by 11%.",
+    icon: React.createElement(FaAws),
+    date: "May 2024 – Present",
   },
   {
-    title: "Front-End Developer",
-    location: "Orlando, FL",
+    title: "Product Innovation Engineer",
+    location: "xFoundry@UMD, College Park, MD",
     description:
-      "I worked as a front-end developer for 2 years in 1 job and 1 year in another job. I also upskilled to the full stack.",
-    icon: React.createElement(CgWorkAlt),
-    date: "2019 - 2021",
+      "Leading MVP development and fine-tuning LLMs for analyzing textual threats. Integrating TensorFlow for computer vision to detect and notify about active threats on campuses.",
+    icon: React.createElement(SiTensorflow),
+    date: "Jan. 2024 – Present",
   },
   {
-    title: "Full-Stack Developer",
-    location: "Houston, TX",
+    title: "Facial Recognition Researcher",
+    location: "UMD FIRE, College Park, MD",
     description:
-      "I'm now a full-stack developer working as a freelancer. My stack includes React, Next.js, TypeScript, Tailwind, Prisma and MongoDB. I'm open to full-time opportunities.",
-    icon: React.createElement(FaReact),
-    date: "2021 - present",
+      "Analyzed facial recognition data using R, improving prediction accuracy by 33%. Identified an 8% accuracy variance across demographics, implementing solutions to reduce bias.",
+    icon: React.createElement(SiR),
+    date: "Aug. 2023 – Present",
   },
 ] as const;
 
 export const projectsData = [
   {
-    title: "CorpComment",
+    title: "NBA Game Predictor",
     description:
-      "I worked as a full-stack developer on this startup project for 2 years. Users can give public feedback to companies.",
-    tags: ["React", "Next.js", "MongoDB", "Tailwind", "Prisma"],
-    imageUrl: corpcommentImg,
+      "Machine learning model for predicting NBA game outcomes with advanced feature engineering and dimensionality reduction techniques.",
+    tags: ["Python", "Pandas", "Scikit-Learn"],
+    imageUrl: nbapredictorImg,
   },
   {
-    title: "rmtDev",
+    title: "SkyCast: Flight Delay Predictor",
     description:
-      "Job board for remote developer jobs. I was the front-end developer. It has features like filtering, sorting and pagination.",
-    tags: ["React", "TypeScript", "Next.js", "Tailwind", "Redux"],
-    imageUrl: rmtdevImg,
+      "Flask-based application predicting flight delays using real-time weather data and machine learning, featuring a scalable React interface.",
+    tags: ["Flask", "React", "Pandas", "Scikit-Learn"],
+    imageUrl: skycastImg,
   },
   {
-    title: "Word Analytics",
+    title: "University Registration System",
     description:
-      "A public web app for quick analytics on text. It shows word count, character count and social media post limits.",
-    tags: ["React", "Next.js", "SQL", "Tailwind", "Framer"],
-    imageUrl: wordanalyticsImg,
+      "Scalable system for course registration, implementing multi-threading and error handling for improved performance and reliability.",
+    tags: ["Java"],
+    imageUrl: registrationImg,
   },
 ] as const;
 
 export const skillsData = [
-  "HTML",
-  "CSS",
-  "JavaScript",
-  "TypeScript",
-  "React",
-  "Next.js",
-  "Node.js",
-  "Git",
-  "Tailwind",
-  "Prisma",
-  "MongoDB",
-  "Redux",
-  "GraphQL",
-  "Apollo",
-  "Express",
-  "PostgreSQL",
-  "Python",
-  "Django",
-  "Framer Motion",
+  { skill: "Python", icon: SiPython },
+  { skill: "Java", icon: FaJava },
+  { skill: "C", icon: SiC },
+  { skill: "C++", icon: SiCplusplus },
+  { skill: "JavaScript", icon: SiJavascript },
+  { skill: "SQL", icon: SiSql },
+  { skill: "React", icon: FaReact },
+  { skill: "Node.js", icon: SiNodeDotJs },
+  { skill: "Next.js", icon: SiNextDotJs },
+  { skill: "Flask", icon: SiFlask },
+  { skill: "Pandas", icon: SiPandas },
+  { skill: "Scikit-Learn", icon: SiScikitlearn },
+  { skill: "AWS", icon: SiAmazonaws },
+  { skill: "Git", icon: SiGit },
+  { skill: "Docker", icon: SiDocker },
+  { skill: "Jupyter", icon: SiJupyter },
+  { skill: "Jira", icon: SiJira },
+  { skill: "MongoDB", icon: SiMongodb },
+  { skill: "UNIX", icon: SiUnix },
+  { skill: "Linux", icon: SiLinux },
 ] as const;
