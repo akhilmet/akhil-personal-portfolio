@@ -46,7 +46,7 @@ export const experiencesData = [
     title: "Product Innovation Engineer",
     location: "College Park, MD",
     description:
-      "1 of 10 students selected for a prestigious 15-month program focused on efforts to improve school safety. Leading the development of an MVP, fine-tuning LLMs with a curated dataset for analyzing textual threats, and integrating TensorFlow for computer vision, resulting in the detection and notification of key personnel about active shooter threats on campuses, backed by a $250K-$2M investment.",
+      "1 of 30 students selected for a prestigious 15-month program focused on efforts to improve school safety. Leading the development of an MVP, fine-tuning LLMs with a curated dataset for analyzing textual threats, and integrating TensorFlow for computer vision, resulting in the detection and notification of key personnel about active shooter threats on campuses, backed by a $250K-$2M investment.",
     icon: React.createElement(CgWorkAlt),
     date: "Jan. 2024 – Present",
   },
