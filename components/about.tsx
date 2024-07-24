@@ -19,7 +19,7 @@ export default function About() {
     >
       <SectionHeading>About me</SectionHeading>
       <p className="mb-3">
-        I'm a rising junior at the University of Maryland, passionate about leveraging{" "}
+        I'm a student at the University of Maryland, passionate about leveraging{" "}
         <span className="font-medium">AI and software engineering</span> to create innovative solutions.
         My journey in tech is driven by a curiosity to explore the boundless possibilities of{" "}
         <span className="font-medium">machine learning</span> and entrepreneurship.
