@@ -9,12 +9,10 @@ import { FaGithubSquare } from "react-icons/fa";
 import { useSectionInView } from "@/lib/hooks";
 import { useActiveSectionContext } from "@/context/active-section-context";
 import { TypeAnimation } from 'react-type-animation';
-import { Tilt } from 'react-tilt';
 
 export default function Intro() {
   const { ref } = useSectionInView("Home", 0.5);
   const { setActiveSection, setTimeOfLastClick } = useActiveSectionContext();
-  const [isHovered, setIsHovered] = useState(false);
 
   return (
     <section
@@ -22,8 +20,25 @@ export default function Intro() {
       id="home"
       className="mb-28 max-w-[50rem] sm:mb-0 scroll-mt-[100rem] px-4"
     >
-      <div className="flex flex-col-reverse md:flex-row items-center justify-between">
-        <div className="text-left md:w-2/3">
+      <div className="flex flex-col items-center justify-between">
+        <motion.div
+          className="mb-8 relative"
+          initial={{ opacity: 0, scale: 0 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ type: "tween", duration: 0.2 }}
+        >
+          <Image
+            src="/profile-pic.png"
+            alt="Akhil Metukuru"
+            width={300}
+            height={300}
+            quality="95"
+            priority={true}
+            className="rounded-full object-cover border-[0.35rem] border-white shadow-xl"
+          />
+        </motion.div>
+
+        <div className="text-center">
           <motion.h2
             className="text-2xl font-medium mb-2"
             initial={{ opacity: 0, y: 100 }}
@@ -38,20 +53,7 @@ export default function Intro() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
           >
-            <span 
-              className="transition-all duration-300 ease-in-out"
-              style={{
-                background: isHovered ? 'linear-gradient(to right, #4ade80, #3b82f6)' : 'none',
-                WebkitBackgroundClip: isHovered ? 'text' : 'none',
-                WebkitTextFillColor: isHovered ? 'transparent' : 'inherit',
-                padding: isHovered ? '0 8px' : '0',
-                borderRadius: isHovered ? '4px' : '0',
-              }}
-              onMouseEnter={() => setIsHovered(true)}
-              onMouseLeave={() => setIsHovered(false)}
-            >
-              I'm Akhil Metukuru
-            </span>
+            I'm Akhil Metukuru
           </motion.h1>
           
           <motion.h3
@@ -60,25 +62,25 @@ export default function Intro() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
           >
-            I'm a{" "}
+            A{" "}
             <TypeAnimation
               sequence={[
                 'Software Engineer.',
-                2000,
+                1500,
                 'Full-Stack Developer.',
-                2000,
+                1500,
                 'Problem-Solver.',
-                2000,
+                1500,
               ]}
               wrapper="span"
-              speed={50}
+              speed={60}
               className="font-bold"
               repeat={Infinity}
             />
           </motion.h3>
 
           <motion.div
-            className="flex items-center gap-2 text-lg font-medium"
+            className="flex items-center justify-center gap-2 text-lg font-medium"
             initial={{ opacity: 0, y: 100 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
@@ -114,25 +116,6 @@ export default function Intro() {
             </a>
           </motion.div>
         </div>
-
-        <motion.div
-          className="md:w-1/3 mb-8 md:mb-0"
-          initial={{ opacity: 0, scale: 0 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ type: "tween", duration: 0.2 }}
-        >
-          <Tilt className="inline-block" options={{ max: 25, scale: 1.05 }}>
-            <Image
-              src="/profile-pic.png"
-              alt="Akhil Metukuru"
-              width={300}
-              height={300}
-              quality="95"
-              priority={true}
-              className="rounded-full object-cover border-[0.35rem] border-white shadow-xl"
-            />
-          </Tilt>
-        </motion.div>
       </div>
     </section>
   );
