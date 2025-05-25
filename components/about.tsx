@@ -24,7 +24,7 @@ export default function About() {
         My journey in tech is driven by a curiosity to explore the boundless possibilities of{" "}
         <span className="font-medium">machine learning</span> and entrepreneurship.
         Currently, I'm honing my skills as a{" "}
-        <span className="font-medium">Software Engineering Intern at Halvik</span>, focusing on{" "}
+        <span className="font-medium">Software Engineering Intern at Capital One</span>, focusing on{" "}
         <span className="font-medium">Generative AI applications</span>.
       </p>
 
