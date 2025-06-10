@@ -39,23 +39,68 @@ Feel free to reach out to me through any of the platforms below. I'm always open
 ## License
 
 This project is licensed under the MIT License.
+## **Dataset Schemas**
 
-Model Selection Decisions
-Primary Focus Models:
+### **MMLU (Academic Questions)**
+**Schema:**
+```json
+{
+  "question": "string",
+  "subject": "string", 
+  "choices": ["string", "string", "string", "string"],
+  "answer": "A|B|C|D"
+}
+```
 
-Llama 3.1 8B (70% of training data) - Primary production model, fastest inference
-Llama 3.3 70B (20% of training data) - Premium quality model for complex tasks
-Llama 3.2 11B (10% of training data) - Balanced middle-tier option
+**Sample:**
+```json
+{
+  "question": "What is the primary function of mitochondria?",
+  "subject": "high_school_biology",
+  "choices": ["A: Protein synthesis", "B: Energy production", "C: DNA replication", "D: Waste removal"],
+  "answer": "B"
+}
+```
 
-Models Not Selected (Rationale):
+### **GSM8K (Math Problems)**
+**Schema:**
+```json
+{
+  "question": "string",
+  "answer": "string"
+}
+```
 
-Llama 3 70B - Superseded by Llama 3.1 70B which offers better performance and efficiency for same resource cost
-Llama 3 8B - Outperformed by Llama 3.1 8B in all benchmarks while requiring identical infrastructure
-Mixtral 8x7B - Complex MoE architecture makes latency prediction inconsistent due to dynamic expert routing
-Llama 4 Scout - Experimental status creates production risk with unpredictable performance patterns
-Llama 3.1 70B - Redundant with Llama 3.3 70B which provides superior capabilities for same resource requirements
+**Sample:**
+```json
+{
+  "question": "Sarah has 24 apples. She gives 8 away and buys 15 more. How many apples does she have total?",
+  "answer": "Sarah gives away 8: 24-8=16. Then buys 15 more: 16+15=31. #### 31"
+}
+```
 
-Decision Rationale: Focused on the three most strategically important models rather than all 8 to ensure high-quality predictions for production traffic patterns. Llama 3.1 8B handles majority of queries, so prediction accuracy here is critical for system performance.
+### **HumanEval (Code Generation)**
+**Schema:**
+```json
+{
+  "task_id": "string",
+  "prompt": "string",
+  "canonical_solution": "string",
+  "test": "string",
+  "entry_point": "string"
+}
+```
+
+**Sample:**
+```json
+{
+  "task_id": "HumanEval/0",
+  "prompt": "def has_close_elements(numbers: List[float], threshold: float) -> bool:\n    \"\"\" Check if any two numbers are closer than threshold \"\"\"\n",
+  "canonical_solution": "    for i, x in enumerate(numbers):\n        for j, y in enumerate(numbers):\n            if i != j and abs(x-y) < threshold:\n                return True\n    return False",
+  "test": "def check(candidate):\n    assert candidate([1.0, 2.0], 0.5) == False",
+  "entry_point": "has_close_elements"
+}
+```
 ---
 
 Thank you for visiting my portfolio! I hope you find my work and experiences interesting. If you have any questions or just want to say hi, don't hesitate to contact me!
