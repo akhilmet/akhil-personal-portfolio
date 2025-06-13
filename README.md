@@ -41,29 +41,25 @@ Feel free to reach out to me through any of the platforms below. I'm always open
 This project is licensed under the MIT License.
 ---
 
-Core Features (The Heavy Hitters)
-
-Token Count: This is gonna be our MVP feature.
-
-Core Latency Calculation
-Theoretical Foundation:
-Latency per token = Model Size (GB) / GPU Memory Bandwidth (GB/s)
-For our A10 GPU setup (600 GB/s bandwidth):
-
-Llama 3.1 8B (16GB): ~27ms/token theoretical minimum
-Llama 3.3 70B (140GB): Cannot run on single A10 (exceeds 24GB VRAM)
-Mixtral 8x7B (87GB): Cannot run on single A10
-
-Key Insight: Modern LLM inference is memory-bandwidth bound, not compute-bound. The A10's 125 TFLOPS processing power is bottlenecked by 600 GB/s memory throughput.
-Token Processing Breakdown:
-
-Input tokens: 0.17ms/token (prefill - parallel processing, compute-bound)
-Output tokens: 27-35ms/token (decode - sequential generation, memory-bound)
-Why this matters: A 100-token input + 50-token output = 17ms + 1,750ms = ~1.77 seconds total
-Model Type: Hardware compatibility flags since only 8B models fit on single A10
-Task Type Flags: Binary flags for math and code tasks. Math gets a 1.5x penalty based on (Hendrycks et al., 2021) showing math reasoning needs extra compute cycles. Code gets hit with 2.0x because syntax validation and logic checking is expensive (Chen et al., 2021).
-
-Supporting Features
-Complexity Counters: Count of math operators, code keywords, question words - basically quantifying how complex the query is beyond just "has math" or "has code".
+LLM Prompt Recovery	id, original_text, rewrite_prompt, rewritten_text	
+Dataset containing prompts that instruct the model to rewrite given texts. Useful for estimating input/output token length.
+Prompt Engineering & Responses	
+Prompt, Response, Prompt_Length	
+Contains curated prompt-response pairs with a length field. Ideal for prompt complexity analysis.
+Human + LLM Mental Health Dialogues	
+Human_Query, LLM_Response	Real-world 
+LLM usage in mental health contexts. Generally longer and more conversational responses.
+LLM QnA Multilingual	
+from_language, model, prompt, response	
+Multilingual question-answer dataset spanning GPT models. Useful for token-length variance across languages.
+LLM Comparison Table	
+Model_Name, Context_Window, Speed_tokens_per_sec	
+Benchmark summary of LLMs, providing decoding speed and model specs. Directly feeds into latency formulas.
+LLM Performance Leaderboard
+Model_Name, Hardware, Prefill_s, Decode_tokens_per_s	
+Observed latency metrics for various LLMs across hardware. Helps calibrate theoretical latency predictions.
+Comprehensive LLM Evaluation	
+Test_ID, Category, Prompt, Expected_Output, Evaluation_Type	
+Contains test scenarios to assess bias, hallucination, and robustness. Informative for downstream quality evaluation.
 
 Thank you for visiting my portfolio! I hope you find my work and experiences interesting. If you have any questions or just want to say hi, don't hesitate to contact me!
