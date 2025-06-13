@@ -41,25 +41,138 @@ Feel free to reach out to me through any of the platforms below. I'm always open
 This project is licensed under the MIT License.
 ---
 
-LLM Prompt Recovery	id, original_text, rewrite_prompt, rewritten_text	
-Dataset containing prompts that instruct the model to rewrite given texts. Useful for estimating input/output token length.
-Prompt Engineering & Responses	
-Prompt, Response, Prompt_Length	
-Contains curated prompt-response pairs with a length field. Ideal for prompt complexity analysis.
-Human + LLM Mental Health Dialogues	
-Human_Query, LLM_Response	Real-world 
-LLM usage in mental health contexts. Generally longer and more conversational responses.
-LLM QnA Multilingual	
-from_language, model, prompt, response	
-Multilingual question-answer dataset spanning GPT models. Useful for token-length variance across languages.
-LLM Comparison Table	
-Model_Name, Context_Window, Speed_tokens_per_sec	
-Benchmark summary of LLMs, providing decoding speed and model specs. Directly feeds into latency formulas.
-LLM Performance Leaderboard
-Model_Name, Hardware, Prefill_s, Decode_tokens_per_s	
-Observed latency metrics for various LLMs across hardware. Helps calibrate theoretical latency predictions.
-Comprehensive LLM Evaluation	
-Test_ID, Category, Prompt, Expected_Output, Evaluation_Type	
-Contains test scenarios to assess bias, hallucination, and robustness. Informative for downstream quality evaluation.
+import re
+from typing import Optional, List, Dict
+
+# --------------------------------------------------------------------------
+# Fallback Latency Estimator Without transformers
+#
+# Uses approximate tokenization until Llama tokenizer is available.
+# Hardware-based naive latency: per-token = model_size_GB / bandwidth_GBps *1000 ms.
+# --------------------------------------------------------------------------
+
+def approx_tokenize(text: str) -> list:
+    """
+    Approximate tokenization: split on words and punctuation.
+    Under- or over-estimates real token count.
+    """
+    return re.findall(r"\w+|[^\w\s]", text)
+
+def approx_token_count(text: str) -> int:
+    return len(approx_tokenize(text))
+
+def detect_math(prompt: str) -> bool:
+    return bool(re.search(r"[0-9]+|[\+\-\*/=]", prompt))
+
+def detect_code(prompt: str) -> bool:
+    keywords = ["def", "function", "return", "{", "}", ";", "import", "class", "=>", "printf", "#include"]
+    return any(kw in prompt for kw in keywords)
+
+class ModelSpec:
+    def __init__(self, name: str, size_gb: float, fits_on_single_gpu: bool):
+        self.name = name
+        self.size_gb = size_gb
+        self.fits_on_single_gpu = fits_on_single_gpu
+
+AVAILABLE_MODELS: List[ModelSpec] = [
+    ModelSpec("llama-3.1-8B", size_gb=16, fits_on_single_gpu=True),
+]
+
+def estimate_ttft(
+    prompt_tokens: int,
+    model: ModelSpec,
+    bandwidth_gbps: float = 600.0,
+    is_math: bool = False,
+    is_code: bool = False,
+) -> Optional[float]:
+    if not model.fits_on_single_gpu:
+        return None
+    base_latency_ms = (model.size_gb / bandwidth_gbps) * 1000.0
+    prefill_cost = prompt_tokens * base_latency_ms
+    decode_cost = base_latency_ms
+    penalty = 1.0
+    if is_math:
+        penalty *= 1.5
+    if is_code:
+        penalty *= 2.0
+    decode_cost *= penalty
+    return prefill_cost + decode_cost
+
+def estimate_full_latency(
+    prompt_tokens: int,
+    expected_output_tokens: int,
+    model: ModelSpec,
+    bandwidth_gbps: float = 600.0,
+    is_math: bool = False,
+    is_code: bool = False,
+) -> Optional[float]:
+    if not model.fits_on_single_gpu:
+        return None
+    base_latency_ms = (model.size_gb / bandwidth_gbps) * 1000.0
+    prefill_cost = prompt_tokens * base_latency_ms
+    decode_per_token = base_latency_ms
+    penalty = 1.0
+    if is_math:
+        penalty *= 1.5
+    if is_code:
+        penalty *= 2.0
+    decode_per_token *= penalty
+    total_decode_cost = expected_output_tokens * decode_per_token
+    return prefill_cost + total_decode_cost
+
+def choose_model_for_ttft_budget(
+    prompt_text: str,
+    budget_ms: float,
+    models: List[ModelSpec],
+) -> List[Dict]:
+    prompt_tokens = approx_token_count(prompt_text)
+    is_math = detect_math(prompt_text)
+    is_code = detect_code(prompt_text)
+
+    candidates = []
+    for m in models:
+        ttft = estimate_ttft(
+            prompt_tokens=prompt_tokens,
+            model=m,
+            is_math=is_math,
+            is_code=is_code
+        )
+        if ttft is not None and ttft <= budget_ms:
+            candidates.append({"model": m.name, "ttft_ms": ttft})
+    candidates.sort(key=lambda x: x["ttft_ms"])
+    return candidates
+
+if __name__ == "__main__":
+    prompt = "def add(a, b): return a + b"
+    prompt_tokens = approx_token_count(prompt)
+    is_math_flag = detect_math(prompt)
+    is_code_flag = detect_code(prompt)
+
+    expected_output_tokens = 50
+    ttft_budget = 200.0
+
+    candidates = choose_model_for_ttft_budget(
+        prompt_text=prompt,
+        budget_ms=ttft_budget,
+        models=AVAILABLE_MODELS
+    )
+    if candidates:
+        print("Models meeting TTFT budget:")
+        for c in candidates:
+            print(f"  {c['model']}: estimated TTFT {c['ttft_ms']:.1f} ms")
+        chosen_name = candidates[0]["model"]
+    else:
+        print("No model meets the TTFT budget; defaulting to fastest available model.")
+        chosen_name = AVAILABLE_MODELS[0].name
+
+    chosen_spec = next(m for m in AVAILABLE_MODELS if m.name == chosen_name)
+    full_latency = estimate_full_latency(
+        prompt_tokens=prompt_tokens,
+        expected_output_tokens=expected_output_tokens,
+        model=chosen_spec,
+        is_math=is_math_flag,
+        is_code=is_code_flag
+    )
+    print(f"Estimated full latency for {chosen_spec.name}: {full_latency:.1f} ms")
 
 Thank you for visiting my portfolio! I hope you find my work and experiences interesting. If you have any questions or just want to say hi, don't hesitate to contact me!
