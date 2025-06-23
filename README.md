@@ -36,10 +36,7 @@ Feel free to reach out to me through any of the platforms below. I'm always open
 - **GitHub:** [github.com/akhilmet](https://github.com/akhilmet)
 - **Website:** [akhilmet.com](https://akhilmet.vercel.app/)
 
-## License
-
-
-# Token Predictor EDA Analysis
+  # Token Predictor EDA Analysis
 # Exploratory Data Analysis for Feature Engineering
 # Updated for: prompt_engineering_dataset.csv and human_interaction_dataset.csv
 
@@ -795,6 +792,8 @@ print("   1. Update latency_predictor.py with new token ratios")
 print("   2. Document findings in JIRA ticket")
 print("   3. Plan A/B testing for improved token estimation")
 print("   4. Schedule quarterly recalibration process")
+
+## License
 
 This project is licensed under the MIT License.
 ---
