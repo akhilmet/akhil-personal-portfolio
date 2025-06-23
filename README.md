@@ -36,7 +36,14 @@ Feel free to reach out to me through any of the platforms below. I'm always open
 - **GitHub:** [github.com/akhilmet](https://github.com/akhilmet)
 - **Website:** [akhilmet.com](https://akhilmet.vercel.app/)
 
-  # Token Predictor EDA Analysis
+# Token Predictor EDA - Complete Jupyter Notebook
+
+Copy and paste each cell below into separate Jupyter notebook cells:
+
+## Cell 1: Imports and Setup
+
+```python
+# Token Predictor EDA Analysis
 # Exploratory Data Analysis for Feature Engineering
 # Updated for: prompt_engineering_dataset.csv and human_interaction_dataset.csv
 
@@ -55,7 +62,11 @@ sns.set_palette("husl")
 
 print("🔍 Token Predictor EDA Analysis")
 print("=" * 60)
+```
 
+## Cell 2: Data Loading
+
+```python
 # =============================================================================
 # STEP 1: LOAD DATASETS
 # =============================================================================
@@ -79,7 +90,11 @@ try:
 except Exception as e:
     print(f"❌ Failed to load human_interaction_dataset.csv: {e}")
     df_human_interaction = None
+```
 
+## Cell 3: Token Counting Functions
+
+```python
 # =============================================================================
 # STEP 2: TOKEN COUNTING FUNCTIONS
 # =============================================================================
@@ -120,6 +135,16 @@ def count_chars(text):
     if pd.isna(text) or text == "":
         return 0
     return len(str(text))
+
+print("\n🔧 Token counting functions defined")
+```
+
+## Cell 4: Analysis Functions
+
+```python
+# =============================================================================
+# STEP 2: ANALYSIS FUNCTIONS
+# =============================================================================
 
 def categorize_question_type(text):
     """Categorize query into question types (who, what, how, where, when, why)"""
@@ -194,10 +219,14 @@ def is_independent_or_continuation(text, response_length=None):
         else:
             return "independent"  # Default to independent
 
-print("\n🔧 Token counting and analysis functions defined")
+print("✅ Analysis functions defined")
+```
 
+## Cell 5: Dataset Processing Functions
+
+```python
 # =============================================================================
-# STEP 3: PROCESS DATASETS AND EXTRACT FEATURES
+# STEP 3: DATASET PROCESSING FUNCTIONS
 # =============================================================================
 
 def process_prompt_engineering_dataset(df):
@@ -280,6 +309,16 @@ def process_human_interaction_dataset(df):
     print(f"✅ Processed {len(processed_df)} records from Human Interaction Dataset")
     return processed_df
 
+print("✅ Dataset processing functions defined")
+```
+
+## Cell 6: Process Datasets
+
+```python
+# =============================================================================
+# STEP 3: PROCESS DATASETS
+# =============================================================================
+
 # Process both datasets
 datasets = {}
 
@@ -289,6 +328,12 @@ if df_prompt_engineering is not None:
 if df_human_interaction is not None:
     datasets['human_interaction'] = process_human_interaction_dataset(df_human_interaction)
 
+print(f"\n📊 Dataset processing complete. Processed {len(datasets)} datasets.")
+```
+
+## Cell 7: Statistical Analysis
+
+```python
 # =============================================================================
 # STEP 4: COMPREHENSIVE STATISTICAL ANALYSIS
 # =============================================================================
@@ -345,7 +390,14 @@ if all_data:
     print(context_dist)
     print(f"\nPercentage distribution:")
     print((context_dist / len(combined_df) * 100).round(2))
+else:
+    print("❌ No data available for analysis")
+    combined_df = None
+```
 
+## Cell 8: Main Visualization Dashboard
+
+```python
 # =============================================================================
 # STEP 5: VISUALIZATION DASHBOARD
 # =============================================================================
@@ -412,7 +464,11 @@ if all_data:
 
 plt.tight_layout()
 plt.show()
+```
 
+## Cell 9: Conversation Analysis
+
+```python
 # =============================================================================
 # STEP 6: CONVERSATION ANALYSIS (Response Data)
 # =============================================================================
@@ -453,7 +509,19 @@ if conversation_data:
     print("-" * 40)
     response_by_context = conv_df.groupby('query_context')['response_token_count_advanced'].agg(['mean', 'median', 'count']).round(2)
     print(response_by_context)
-    
+else:
+    print("❌ No conversation data available for analysis")
+    conv_df = None
+```
+
+## Cell 10: Conversation Visualizations
+
+```python
+# =============================================================================
+# STEP 6B: CONVERSATION VISUALIZATIONS
+# =============================================================================
+
+if conversation_data:
     # Create conversation analysis plots
     fig, axes = plt.subplots(2, 2, figsize=(15, 10))
     fig.suptitle('Conversation Analysis - Query vs Response Patterns', fontsize=14, fontweight='bold')
@@ -483,7 +551,13 @@ if conversation_data:
     
     plt.tight_layout()
     plt.show()
+else:
+    print("⚠️ No conversation visualizations created - no response data available")
+```
 
+## Cell 11: Dataset-Specific Analysis
+
+```python
 # =============================================================================
 # STEP 7: DATASET-SPECIFIC ANALYSIS
 # =============================================================================
@@ -529,7 +603,11 @@ if 'human_interaction' in datasets and datasets['human_interaction'] is not None
             print("\nAverage Response Length by LLM Model:")
             response_by_llm = hi_df.groupby('llm_model')['response_token_count_advanced'].mean().round(2)
             print(response_by_llm)
+```
 
+## Cell 12: Token Prediction Accuracy Analysis
+
+```python
 # =============================================================================
 # STEP 8: TOKEN PREDICTION ACCURACY ANALYSIS
 # =============================================================================
@@ -566,7 +644,11 @@ if all_data:
     print(f"Current predictor uses: 4.0 chars/token")
     print(f"Suggested improvement: {our_ratio.mean():.2f} chars/token")
     print(f"Accuracy improvement: {abs(4.0 - our_ratio.mean())/4.0*100:.1f}% better")
+```
 
+## Cell 13: Feature Engineering Insights
+
+```python
 # =============================================================================
 # STEP 9: FEATURE ENGINEERING INSIGHTS
 # =============================================================================
@@ -614,15 +696,26 @@ if all_data:
         print(f"   • 90th percentile response: {conv_df['response_token_count_advanced'].quantile(0.9):.1f} tokens")
     
     print(f"\n6. RECOMMENDATIONS FOR LATENCY PREDICTOR:")
+    our_ratio = combined_df['query_char_count'] / combined_df['query_token_count_advanced']
     print(f"   ✅ Current char/4 approximation accuracy: {abs(4.0 - our_ratio.mean())/4.0*100:.1f}% off")
     print(f"   ✅ Suggested chars/token ratio: {our_ratio.mean():.1f}")
     print(f"   ✅ Question type has minimal impact on token count")
-    print(f"   ✅ Code requests are {((combined_df[combined_df['content_type']=='code_request']['query_token_count_advanced'].mean() / combined_df[combined_df['content_type']=='natural_language']['query_token_count_advanced'].mean() - 1)*100):.1f}% longer than natural language")
+    code_avg = combined_df[combined_df['content_type']=='code_request']['query_token_count_advanced'].mean() if (combined_df['content_type']=='code_request').any() else 0
+    nl_avg = combined_df[combined_df['content_type']=='natural_language']['query_token_count_advanced'].mean() if (combined_df['content_type']=='natural_language').any() else 0
+    if code_avg > 0 and nl_avg > 0:
+        diff = ((code_avg / nl_avg) - 1) * 100
+        print(f"   ✅ Code requests are {diff:.1f}% longer than natural language")
     if conversation_data:
         print(f"   ✅ Default {conv_df['response_token_count_advanced'].median():.0f} output tokens appropriate for most use cases")
-        print(f"   ✅ Independent queries get {(conv_df[conv_df['query_context']=='independent']['response_token_count_advanced'].mean()):.1f} avg token responses")
-        print(f"   ✅ Continuation queries get {(conv_df[conv_df['query_context']=='continuation']['response_token_count_advanced'].mean() if (conv_df['query_context']=='continuation').any() else 'N/A')} avg token responses")
+        print(f"   ✅ Independent queries get {(conv_df[conv_df['query_context']=='independent']['response_token_count_advanced'].mean() if (conv_df['query_context']=='independent').any() else 0):.1f} avg token responses")
+        continuation_avg = conv_df[conv_df['query_context']=='continuation']['response_token_count_advanced'].mean() if (conv_df['query_context']=='continuation').any() else 0
+        if continuation_avg > 0:
+            print(f"   ✅ Continuation queries get {continuation_avg:.1f} avg token responses")
+```
 
+## Cell 14: Summary Statistics for JIRA
+
+```python
 # =============================================================================
 # STEP 10: SUMMARY STATISTICS FOR JIRA TICKET
 # =============================================================================
@@ -685,7 +778,11 @@ if all_data:
         continuation_count = (conv_df['query_context'] == 'continuation').sum()
         print(f"   • Independent queries: {independent_count:,} ({independent_count/conv_total*100:.1f}%)")
         print(f"   • Continuation queries: {continuation_count:,} ({continuation_count/conv_total*100:.1f}%)")
+```
 
+## Cell 15: Token Predictor Calibration
+
+```python
 # =============================================================================
 # STEP 11: TOKEN PREDICTOR CALIBRATION RECOMMENDATIONS
 # =============================================================================
@@ -728,7 +825,11 @@ if all_data:
         print(f"     • Standard (median): {response_percentiles[0.5]:.0f} tokens")
         print(f"     • Generous (75th percentile): {response_percentiles[0.75]:.0f} tokens")
         print(f"     • Enterprise (90th percentile): {response_percentiles[0.9]:.0f} tokens")
+```
 
+## Cell 16: Final Insights and Recommendations
+
+```python
 # =============================================================================
 # STEP 12: FINAL INSIGHTS AND ACTIONABLE RECOMMENDATIONS
 # =============================================================================
@@ -737,6 +838,9 @@ print(f"\n🎯 FINAL INSIGHTS AND ACTIONABLE RECOMMENDATIONS")
 print("=" * 60)
 
 if all_data:
+    optimal_char_ratio = combined_df['query_char_count'] / combined_df['query_token_count_advanced']
+    optimal_word_ratio = combined_df['query_word_count'] / combined_df['query_token_count_advanced']
+    
     print(f"📋 KEY ACTIONABLE INSIGHTS:")
     print(f"1. TOKEN ESTIMATION ACCURACY:")
     print(f"   • Current method (chars/4) has {abs(4.0 - optimal_char_ratio.mean())/4.0*100:.1f}% error")
@@ -792,6 +896,35 @@ print("   1. Update latency_predictor.py with new token ratios")
 print("   2. Document findings in JIRA ticket")
 print("   3. Plan A/B testing for improved token estimation")
 print("   4. Schedule quarterly recalibration process")
+```
+
+---
+
+## 📋 **Instructions for Use:**
+
+### **Setup:**
+1. Create a new Jupyter notebook
+2. Copy each cell above into separate notebook cells
+3. Place your CSV files in the same directory as the notebook:
+   - `prompt_engineering_dataset.csv`
+   - `human_interaction_dataset.csv`
+
+### **Run Order:**
+1. **Cells 1-6**: Setup and data processing
+2. **Cell 7**: Statistical analysis (view results)
+3. **Cell 8**: Main visualization dashboard
+4. **Cells 9-10**: Conversation analysis (if applicable)
+5. **Cells 11-16**: Detailed insights and recommendations
+
+### **Expected Outputs:**
+- **9-panel visualization dashboard**
+- **Comprehensive statistical summaries**
+- **Token predictor calibration recommendations**
+- **Business insights for JIRA documentation**
+- **Implementation roadmap**
+
+### **GitHub README Ready:**
+This format is optimized for copying into GitHub README.md and then easily transferring to any Jupyter environment. Each cell is clearly separated and ready for enterprise use.
 
 ## License
 
