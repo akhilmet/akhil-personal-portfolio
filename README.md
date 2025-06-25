@@ -4,6 +4,7 @@
 # STEP 2: REAL TOKEN COUNTING WITH MISTRAL TOKENIZER
 # =============================================================================
 
+```python
 # Use Mistral tokenizer (available in Capital One GenAI sandbox)
 from mistral_common.tokens.tokenizers.mistral import MistralTokenizer
 import warnings
@@ -41,7 +42,7 @@ def count_tokens_real(text):
     except Exception as e:
         print(f"Warning: Mistral tokenizer failed for text '{text[:50]}...': {e}")
         return estimate_tokens_fallback(text)
-
+'''
 # =============================================================================
 # SIMPLISTIC APPROACHES (KEPT FOR COMPARISON)
 # =============================================================================
@@ -89,6 +90,7 @@ def llama_token_count(text):
 print(f"\n🔧 Token counting functions loaded")
 print(f"✅ Primary method: {tokenizer_name}")
 print(f"✅ Tokenizer available: {tokenizer_available}")
+```
 
 Welcome to my personal portfolio! Here you'll find all my latest work, skills, and experiences. I'm excited to share my journey and achievements with you.
 
