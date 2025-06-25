@@ -4,7 +4,13 @@
 # STEP 2: REAL TOKEN COUNTING WITH MISTRAL TOKENIZER
 # =============================================================================
 
+## Cell 3: Mistral Tokenizer Setup (Updated for Capital One GenAI Sandbox)
+
 ```python
+# =============================================================================
+# STEP 2: REAL TOKEN COUNTING WITH MISTRAL TOKENIZER
+# =============================================================================
+
 # Use Mistral tokenizer (available in Capital One GenAI sandbox)
 from mistral_common.tokens.tokenizers.mistral import MistralTokenizer
 import warnings
@@ -42,7 +48,7 @@ def count_tokens_real(text):
     except Exception as e:
         print(f"Warning: Mistral tokenizer failed for text '{text[:50]}...': {e}")
         return estimate_tokens_fallback(text)
-'''
+
 # =============================================================================
 # SIMPLISTIC APPROACHES (KEPT FOR COMPARISON)
 # =============================================================================
@@ -87,9 +93,90 @@ def llama_token_count(text):
     """Main token counting function using Mistral tokenizer"""
     return count_tokens_real(text)
 
+# =============================================================================
+# TEST THE MISTRAL TOKENIZER ACCURACY
+# =============================================================================
+
+def test_mistral_tokenizer_accuracy():
+    """Test MistralTokenizer vs simplistic approaches"""
+    test_texts = [
+        "Hello world! How are you doing today?",
+        "Calculate 15% of $1,000 using Python code.",
+        "What are the key risk factors for commercial loan applications?",
+        "Write a SQL query to find customers with overdue payments.",
+        "I'm feeling sad today and need some emotional support.",
+        "Explain quantum mechanics in simple terms.",
+        "Create a function that implements binary search algorithm."
+    ]
+    
+    print("\n🧪 MISTRAL TOKENIZER ACCURACY TEST")
+    print("=" * 70)
+    print(f"{'Text':<50} {'Real':<6} {'Basic':<6} {'Fallback':<9} {'Chars':<6} {'Words':<6}")
+    print("-" * 70)
+    
+    total_real = 0
+    total_basic = 0
+    total_fallback = 0
+    total_chars = 0
+    total_words = 0
+    
+    for text in test_texts:
+        real_tokens = count_tokens_real(text)
+        basic_tokens = estimate_tokens_basic(text)
+        fallback_tokens = estimate_tokens_fallback(text)
+        char_count = count_chars(text)
+        word_count = count_words(text)
+        
+        # Truncate text for display
+        display_text = text[:47] + "..." if len(text) > 50 else text
+        
+        print(f"{display_text:<50} {real_tokens:<6} {basic_tokens:<6} {fallback_tokens:<9} {char_count:<6} {word_count:<6}")
+        
+        total_real += real_tokens
+        total_basic += basic_tokens
+        total_fallback += fallback_tokens
+        total_chars += char_count
+        total_words += word_count
+    
+    print("-" * 70)
+    print(f"{'TOTALS:':<50} {total_real:<6} {total_basic:<6} {total_fallback:<9} {total_chars:<6} {total_words:<6}")
+    
+    # Calculate accuracy metrics
+    if total_real > 0:
+        basic_error = abs(total_basic - total_real) / total_real * 100
+        fallback_error = abs(total_fallback - total_real) / total_real * 100
+        chars_per_token = total_chars / total_real
+        words_per_token = total_words / total_real
+        
+        print(f"\n📊 ACCURACY METRICS:")
+        print(f"   Basic method (chars/4) error:     {basic_error:.1f}%")
+        print(f"   Fallback method error:             {fallback_error:.1f}%")
+        print(f"   Average chars per token:           {chars_per_token:.2f}")
+        print(f"   Average words per token:           {words_per_token:.2f}")
+        print(f"   Current latency predictor uses:    4.0 chars/token")
+        print(f"   Suggested improvement:             {chars_per_token:.2f} chars/token")
+        
+        if tokenizer_available:
+            print(f"   ✅ Mistral tokenizer working perfectly!")
+        else:
+            print(f"   ⚠️ Using fallback estimation method")
+    
+    return {
+        'real_tokens': total_real,
+        'basic_tokens': total_basic,
+        'fallback_tokens': total_fallback,
+        'chars_per_token': total_chars / total_real if total_real > 0 else 0,
+        'words_per_token': total_words / total_real if total_real > 0 else 0
+    }
+
+# Run the test
 print(f"\n🔧 Token counting functions loaded")
 print(f"✅ Primary method: {tokenizer_name}")
 print(f"✅ Tokenizer available: {tokenizer_available}")
+
+# Execute the test
+test_results = test_mistral_tokenizer_accuracy()
+```
 ```
 
 Welcome to my personal portfolio! Here you'll find all my latest work, skills, and experiences. I'm excited to share my journey and achievements with you.
