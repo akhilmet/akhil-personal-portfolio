@@ -1,10 +1,8 @@
 # Akhil Metukuru's Personal Portfolio
-
+```python
 # =============================================================================
 # STEP 2: REAL TOKEN COUNTING WITH MISTRAL TOKENIZER
 # =============================================================================
-
-```python
 # Use Mistral tokenizer (available in Capital One GenAI sandbox)
 from mistral_common.tokens.tokenizers.mistral import MistralTokenizer
 import warnings
@@ -266,6 +264,7 @@ print(f"✅ Tokenizer available: {tokenizer_available}")
 
 # Execute the test
 test_results = test_mistral_tokenizer_accuracy()
+```
 
 Welcome to my personal portfolio! Here you'll find all my latest work, skills, and experiences. I'm excited to share my journey and achievements with you.
 
