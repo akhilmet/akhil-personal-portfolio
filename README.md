@@ -4,13 +4,7 @@
 # STEP 2: REAL TOKEN COUNTING WITH MISTRAL TOKENIZER
 # =============================================================================
 
-## Cell 3: Mistral Tokenizer Setup (Updated for Capital One GenAI Sandbox)
-
 ```python
-# =============================================================================
-# STEP 2: REAL TOKEN COUNTING WITH MISTRAL TOKENIZER
-# =============================================================================
-
 # Use Mistral tokenizer (available in Capital One GenAI sandbox)
 from mistral_common.tokens.tokenizers.mistral import MistralTokenizer
 import warnings
@@ -32,7 +26,7 @@ except Exception as e:
     tokenizer_available = False
 
 def count_tokens_real(text):
-    """Count tokens using Mistral tokenizer"""
+    """Count tokens using Mistral tokenizer with correct API"""
     if pd.isna(text) or text == "":
         return 0
     
@@ -40,13 +34,52 @@ def count_tokens_real(text):
     
     try:
         if tokenizer_available and hf_tokenizer is not None:
-            # Use Mistral tokenizer encode method
-            tokens = hf_tokenizer.encode(text, bos=False, eos=False)
-            return len(tokens)
+            # Use Mistral tokenizer with correct API - encode_chat_completion or tokenize
+            # Try different methods based on MistralTokenizer API
+            if hasattr(hf_tokenizer, 'tokenize'):
+                tokens = hf_tokenizer.tokenize(text)
+                return len(tokens)
+            elif hasattr(hf_tokenizer, 'encode_chat_completion'):
+                # For chat completion format
+                from mistral_common.protocol.instruct.messages import UserMessage
+                from mistral_common.protocol.instruct.request import ChatCompletionRequest
+                
+                completion_request = ChatCompletionRequest(messages=[UserMessage(content=text)])
+                tokens = hf_tokenizer.encode_chat_completion(completion_request)
+                return len(tokens.tokens)
+            else:
+                # Try direct attribute access for token counting
+                # Some versions might have different methods
+                return estimate_tokens_fallback(text)
         else:
             return estimate_tokens_fallback(text)
     except Exception as e:
         print(f"Warning: Mistral tokenizer failed for text '{text[:50]}...': {e}")
+        return estimate_tokens_fallback(text)
+
+# Alternative implementation if the above doesn't work
+def count_tokens_real_alternative(text):
+    """Alternative method using string-based tokenization"""
+    if pd.isna(text) or text == "":
+        return 0
+    
+    text = str(text)
+    
+    try:
+        if tokenizer_available and hf_tokenizer is not None:
+            # Try tokenizing as a simple string
+            # This might work depending on the MistralTokenizer version
+            encoded = hf_tokenizer(text)
+            if hasattr(encoded, 'tokens'):
+                return len(encoded.tokens)
+            elif isinstance(encoded, list):
+                return len(encoded)
+            else:
+                return estimate_tokens_fallback(text)
+        else:
+            return estimate_tokens_fallback(text)
+    except Exception as e:
+        print(f"Warning: Alternative Mistral tokenizer failed: {e}")
         return estimate_tokens_fallback(text)
 
 # =============================================================================
@@ -94,11 +127,68 @@ def llama_token_count(text):
     return count_tokens_real(text)
 
 # =============================================================================
+# DEBUG MISTRAL TOKENIZER AND TEST METHODS
+# =============================================================================
+
+def debug_mistral_tokenizer():
+    """Debug the MistralTokenizer to understand its API"""
+    if tokenizer_available and hf_tokenizer is not None:
+        print("\n🔍 DEBUGGING MISTRAL TOKENIZER API")
+        print("=" * 50)
+        print(f"Tokenizer type: {type(hf_tokenizer)}")
+        print(f"Available methods: {[method for method in dir(hf_tokenizer) if not method.startswith('_')]}")
+        
+        # Test a simple string
+        test_text = "Hello world"
+        print(f"\nTesting with: '{test_text}'")
+        
+        # Try different methods
+        methods_to_try = ['tokenize', 'encode', 'encode_chat_completion', '__call__']
+        
+        for method_name in methods_to_try:
+            if hasattr(hf_tokenizer, method_name):
+                try:
+                    method = getattr(hf_tokenizer, method_name)
+                    print(f"✅ Found method: {method_name}")
+                    
+                    if method_name == 'encode_chat_completion':
+                        # Special handling for chat completion
+                        from mistral_common.protocol.instruct.messages import UserMessage
+                        from mistral_common.protocol.instruct.request import ChatCompletionRequest
+                        
+                        completion_request = ChatCompletionRequest(messages=[UserMessage(content=test_text)])
+                        result = method(completion_request)
+                        print(f"   Result type: {type(result)}")
+                        if hasattr(result, 'tokens'):
+                            print(f"   Token count: {len(result.tokens)}")
+                        else:
+                            print(f"   Result: {result}")
+                    else:
+                        # Try calling the method directly
+                        result = method(test_text)
+                        print(f"   Result type: {type(result)}")
+                        if isinstance(result, list):
+                            print(f"   Token count: {len(result)}")
+                        elif hasattr(result, 'tokens'):
+                            print(f"   Token count: {len(result.tokens)}")
+                        else:
+                            print(f"   Result: {result}")
+                            
+                except Exception as e:
+                    print(f"❌ Method {method_name} failed: {e}")
+            else:
+                print(f"❌ Method {method_name} not found")
+
+# =============================================================================
 # TEST THE MISTRAL TOKENIZER ACCURACY
 # =============================================================================
 
 def test_mistral_tokenizer_accuracy():
     """Test MistralTokenizer vs simplistic approaches"""
+    
+    # First debug the tokenizer
+    debug_mistral_tokenizer()
+    
     test_texts = [
         "Hello world! How are you doing today?",
         "Calculate 15% of $1,000 using Python code.",
@@ -176,8 +266,6 @@ print(f"✅ Tokenizer available: {tokenizer_available}")
 
 # Execute the test
 test_results = test_mistral_tokenizer_accuracy()
-```
-```
 
 Welcome to my personal portfolio! Here you'll find all my latest work, skills, and experiences. I'm excited to share my journey and achievements with you.
 
