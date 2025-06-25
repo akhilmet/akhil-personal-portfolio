@@ -1,8 +1,8 @@
-# Akhil Metukuru's Personal Portfolio
 ```python
 # =============================================================================
 # STEP 2: REAL TOKEN COUNTING WITH MISTRAL TOKENIZER
 # =============================================================================
+
 # Use Mistral tokenizer (available in Capital One GenAI sandbox)
 from mistral_common.tokens.tokenizers.mistral import MistralTokenizer
 import warnings
@@ -125,68 +125,11 @@ def llama_token_count(text):
     return count_tokens_real(text)
 
 # =============================================================================
-# DEBUG MISTRAL TOKENIZER AND TEST METHODS
-# =============================================================================
-
-def debug_mistral_tokenizer():
-    """Debug the MistralTokenizer to understand its API"""
-    if tokenizer_available and hf_tokenizer is not None:
-        print("\n🔍 DEBUGGING MISTRAL TOKENIZER API")
-        print("=" * 50)
-        print(f"Tokenizer type: {type(hf_tokenizer)}")
-        print(f"Available methods: {[method for method in dir(hf_tokenizer) if not method.startswith('_')]}")
-        
-        # Test a simple string
-        test_text = "Hello world"
-        print(f"\nTesting with: '{test_text}'")
-        
-        # Try different methods
-        methods_to_try = ['tokenize', 'encode', 'encode_chat_completion', '__call__']
-        
-        for method_name in methods_to_try:
-            if hasattr(hf_tokenizer, method_name):
-                try:
-                    method = getattr(hf_tokenizer, method_name)
-                    print(f"✅ Found method: {method_name}")
-                    
-                    if method_name == 'encode_chat_completion':
-                        # Special handling for chat completion
-                        from mistral_common.protocol.instruct.messages import UserMessage
-                        from mistral_common.protocol.instruct.request import ChatCompletionRequest
-                        
-                        completion_request = ChatCompletionRequest(messages=[UserMessage(content=test_text)])
-                        result = method(completion_request)
-                        print(f"   Result type: {type(result)}")
-                        if hasattr(result, 'tokens'):
-                            print(f"   Token count: {len(result.tokens)}")
-                        else:
-                            print(f"   Result: {result}")
-                    else:
-                        # Try calling the method directly
-                        result = method(test_text)
-                        print(f"   Result type: {type(result)}")
-                        if isinstance(result, list):
-                            print(f"   Token count: {len(result)}")
-                        elif hasattr(result, 'tokens'):
-                            print(f"   Token count: {len(result.tokens)}")
-                        else:
-                            print(f"   Result: {result}")
-                            
-                except Exception as e:
-                    print(f"❌ Method {method_name} failed: {e}")
-            else:
-                print(f"❌ Method {method_name} not found")
-
-# =============================================================================
 # TEST THE MISTRAL TOKENIZER ACCURACY
 # =============================================================================
 
 def test_mistral_tokenizer_accuracy():
     """Test MistralTokenizer vs simplistic approaches"""
-    
-    # First debug the tokenizer
-    debug_mistral_tokenizer()
-    
     test_texts = [
         "Hello world! How are you doing today?",
         "Calculate 15% of $1,000 using Python code.",
@@ -265,6 +208,7 @@ print(f"✅ Tokenizer available: {tokenizer_available}")
 # Execute the test
 test_results = test_mistral_tokenizer_accuracy()
 ```
+# Akhil Metukuru's Personal Portfolio
 
 Welcome to my personal portfolio! Here you'll find all my latest work, skills, and experiences. I'm excited to share my journey and achievements with you.
 
