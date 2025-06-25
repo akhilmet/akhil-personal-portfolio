@@ -1,3 +1,127 @@
+## Cell 7: Statistical Analysis (FIXED)
+
+```python
+# =============================================================================
+# STEP 4: COMPREHENSIVE STATISTICAL ANALYSIS (IMPROVED)
+# =============================================================================
+
+print("\n📈 COMPREHENSIVE TOKEN ANALYSIS (Mistral Tokenizer)")
+print("=" * 60)
+
+# Combine all datasets for overall analysis
+all_data = []
+for name, df in datasets.items():
+    if df is not None:
+        # Select relevant columns including new complexity features - FIXED COLUMN NAMES
+        columns_to_select = ['query_char_count', 'query_word_count', 'query_token_count_basic', 
+                           'query_token_count_real', 'question_type', 'other_subcategory',
+                           'content_type', 'query_context']
+        
+        # Add complexity features if they exist
+        complexity_cols = ['has_numbers', 'has_punctuation', 'has_special_chars', 
+                          'has_technical_terms', 'sentence_count', 'avg_word_length', 'complexity_score']
+        
+        # Only add columns that actually exist in the dataframe
+        available_cols = []
+        for col in columns_to_select + complexity_cols:
+            if col in df.columns:
+                available_cols.append(col)
+        
+        df_subset = df[available_cols].copy()
+        df_subset['dataset'] = name
+        all_data.append(df_subset)
+
+if all_data:
+    combined_df = pd.concat(all_data, ignore_index=True)
+    
+    # Overall Statistics with REAL tokenizer comparison
+    print("\n📊 OVERALL QUERY STATISTICS (Real vs Estimation)")
+    print("-" * 40)
+    
+    # Only include columns that exist
+    stats_cols = []
+    for col in ['query_char_count', 'query_word_count', 'query_token_count_basic', 'query_token_count_real']:
+        if col in combined_df.columns:
+            stats_cols.append(col)
+    
+    if stats_cols:
+        stats_summary = combined_df[stats_cols].describe()
+        print(stats_summary.round(2))
+    
+    # Method comparison
+    print("\n📊 TOKENIZER METHOD COMPARISON")
+    print("-" * 40)
+    
+    if 'query_token_count_real' in combined_df.columns:
+        avg_real = combined_df['query_token_count_real'].mean()
+        
+        if 'query_token_count_basic' in combined_df.columns:
+            avg_basic = combined_df['query_token_count_basic'].mean()
+            basic_error = abs(avg_basic - avg_real) / avg_real * 100
+            print(f"Real Mistral Tokenizer:         {avg_real:.1f} avg tokens (GROUND TRUTH)")
+            print(f"Basic (chars/4):                {avg_basic:.1f} avg tokens ({basic_error:.1f}% error)")
+        else:
+            print(f"Real Mistral Tokenizer:         {avg_real:.1f} avg tokens (GROUND TRUTH)")
+    
+    # IMPROVED: Question type analysis (ensuring single category per prompt)
+    print("\n📊 IMPROVED QUESTION TYPE DISTRIBUTION")
+    print("-" * 40)
+    
+    if 'question_type' in combined_df.columns:
+        question_dist = combined_df['question_type'].value_counts()
+        print(question_dist)
+        print(f"\nPercentage distribution:")
+        print((question_dist / len(combined_df) * 100).round(2))
+        
+        # Validate single categorization
+        print(f"\nTotal queries: {len(combined_df)}")
+        print(f"Sum of all categories: {question_dist.sum()} ✅ Should match total")
+    
+    # IMPROVED: 'Other' category deep dive
+    print("\n📊 'OTHER' CATEGORY REFINED ANALYSIS")
+    print("-" * 40)
+    
+    if 'question_type' in combined_df.columns and 'other_subcategory' in combined_df.columns:
+        other_subset = combined_df[combined_df['question_type'] == 'other']
+        if len(other_subset) > 0:
+            other_subcategory_dist = other_subset['other_subcategory'].value_counts()
+            print(f"Total 'other' queries: {len(other_subset)} ({len(other_subset)/len(combined_df)*100:.1f}%)")
+            print("\nSubcategory breakdown:")
+            for subcat, count in other_subcategory_dist.items():
+                pct = count / len(other_subset) * 100
+                if 'query_token_count_real' in other_subset.columns:
+                    avg_tokens = other_subset[other_subset['other_subcategory'] == subcat]['query_token_count_real'].mean()
+                    print(f"   {subcat}: {count} queries ({pct:.1f}%, avg {avg_tokens:.1f} tokens)")
+                else:
+                    print(f"   {subcat}: {count} queries ({pct:.1f}%)")
+        else:
+            print("No 'other' category queries found.")
+    
+    # Content type distribution
+    print("\n📊 CONTENT TYPE DISTRIBUTION")
+    print("-" * 40)
+    
+    if 'content_type' in combined_df.columns:
+        content_dist = combined_df['content_type'].value_counts()
+        print(content_dist)
+        print(f"\nPercentage distribution:")
+        print((content_dist / len(combined_df) * 100).round(2))
+    
+    # Query context analysis (Independent vs Continuation)
+    print("\n📊 QUERY CONTEXT ANALYSIS (Independent vs Continuation)")
+    print("-" * 40)
+    
+    if 'query_context' in combined_df.columns:
+        context_dist = combined_df['query_context'].value_counts()
+        print(context_dist)
+        print(f"\nPercentage distribution:")
+        print((context_dist / len(combined_df) * 100).round(2))
+        
+else:
+    print("❌ No data available for analysis")
+    combined_df = None
+```
+
 # Akhil Metukuru's Personal Portfolio
 
 Welcome to my personal portfolio! Here you'll find all my latest work, skills, and experiences. I'm excited to share my journey and achievements with you.
