@@ -1,4 +1,5 @@
 Cell 1: Imports and Setup
+```python
 python# Token Predictor EDA Analysis
 # Exploratory Data Analysis for Feature Engineering
 # Updated for: prompt_engineering_dataset.csv and human_interaction_dataset.csv
@@ -19,7 +20,7 @@ sns.set_palette("husl")
 print("🔍 Token Predictor EDA Analysis - Updated Version")
 print("=" * 60)
 
-
+```
 # Akhil Metukuru's Personal Portfolio
 
 Welcome to my personal portfolio! Here you'll find all my latest work, skills, and experiences. I'm excited to share my journey and achievements with you.
