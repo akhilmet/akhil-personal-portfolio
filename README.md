@@ -1,5 +1,95 @@
 # Akhil Metukuru's Personal Portfolio
 
+# =============================================================================
+# STEP 2: REAL TOKEN COUNTING WITH MISTRAL TOKENIZER
+# =============================================================================
+
+# Use Mistral tokenizer (available in Capital One GenAI sandbox)
+from mistral_common.tokens.tokenizers.mistral import MistralTokenizer
+import warnings
+warnings.filterwarnings('ignore')
+
+# Initialize Mistral tokenizer for enterprise use
+print("🔄 Loading Mistral tokenizer...")
+
+try:
+    # Use MistralTokenizer (matches your Mixtral model and available in sandbox)
+    hf_tokenizer = MistralTokenizer.from_model("open-mixtral-8x7b")
+    tokenizer_name = "Mistral (open-mixtral-8x7b)"
+    print("✅ Mistral tokenizer loaded (perfect match for your models)")
+    tokenizer_available = True
+except Exception as e:
+    print(f"❌ Mistral tokenizer failed: {e}")
+    hf_tokenizer = None
+    tokenizer_name = "None - using fallback"
+    tokenizer_available = False
+
+def count_tokens_real(text):
+    """Count tokens using Mistral tokenizer"""
+    if pd.isna(text) or text == "":
+        return 0
+    
+    text = str(text)
+    
+    try:
+        if tokenizer_available and hf_tokenizer is not None:
+            # Use Mistral tokenizer encode method
+            tokens = hf_tokenizer.encode(text, bos=False, eos=False)
+            return len(tokens)
+        else:
+            return estimate_tokens_fallback(text)
+    except Exception as e:
+        print(f"Warning: Mistral tokenizer failed for text '{text[:50]}...': {e}")
+        return estimate_tokens_fallback(text)
+
+# =============================================================================
+# SIMPLISTIC APPROACHES (KEPT FOR COMPARISON)
+# =============================================================================
+
+def estimate_tokens_basic(text):
+    """SIMPLISTIC: Basic chars/4 method (for comparison)"""
+    if pd.isna(text) or text == "":
+        return 0
+    return max(1, len(str(text)) // 4)
+
+def estimate_tokens_fallback(text):
+    """IMPROVED FALLBACK: Better estimation if tokenizer fails"""
+    if pd.isna(text) or text == "":
+        return 0
+    
+    text = str(text)
+    words = text.split()
+    
+    base_tokens = len(words) * 1.35
+    punct_tokens = len(re.findall(r'[.,!?;:(){}[\]"\'`]', text)) * 0.7
+    number_tokens = len(re.findall(r'\d+', text)) * 0.9
+    special_tokens = len(re.findall(r'[@#$%^&*+=<>~/\\|]', text)) * 0.5
+    long_word_penalty = sum(1 for word in words if len(word) > 8) * 0.4
+    tech_terms = len(re.findall(r'\b(?:API|SQL|HTML|CSS|JSON|XML|HTTP|URL)\b', text.upper())) * 0.3
+    
+    total_tokens = base_tokens + punct_tokens + number_tokens + special_tokens + long_word_penalty + tech_terms
+    return max(1, int(total_tokens))
+
+def count_words(text):
+    """Count words in text"""
+    if pd.isna(text) or text == "":
+        return 0
+    return len(str(text).split())
+
+def count_chars(text):
+    """Count characters in text"""
+    if pd.isna(text) or text == "":
+        return 0
+    return len(str(text))
+
+def llama_token_count(text):
+    """Main token counting function using Mistral tokenizer"""
+    return count_tokens_real(text)
+
+print(f"\n🔧 Token counting functions loaded")
+print(f"✅ Primary method: {tokenizer_name}")
+print(f"✅ Tokenizer available: {tokenizer_available}")
+
 Welcome to my personal portfolio! Here you'll find all my latest work, skills, and experiences. I'm excited to share my journey and achievements with you.
 
 ## About Me
