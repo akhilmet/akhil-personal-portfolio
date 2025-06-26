@@ -1,153 +1,37 @@
-## Cell 16: Final Training Data Structure (FIXED)
+1. OpenCodeInstruct
+https://huggingface.co/datasets/nvidia/OpenCodeInstruct
 
-```python
-# =============================================================================
-# STEP 12: FINAL TRAINING DATA STRUCTURE FOR ML MODEL
-# =============================================================================
+Has tons of "write this code" prompts with actual code outputs
+Good mix of simple and complex stuff
+Basically what people will ask your models to do
 
-print(f"\n🎯 FINAL TRAINING DATA STRUCTURE FOR ML MODEL")
-print("=" * 60)
+2. Magpie-Llama-3.1-Pro-DPO-100K-v0.1
+https://huggingface.co/datasets/Magpie-Align/Magpie-Llama-3.1-Pro-DPO-100K-v0.1
 
-if all_data:
-    # Create final training dataset
-    training_data = combined_df.copy()
-    
-    # Define features for ML training
-    FEATURE_COLUMNS = [
-        # Basic text metrics
-        'query_char_count',
-        'query_word_count'
-    ]
-    
-    # Add categorical features if they exist
-    categorical_features = ['question_type', 'other_subcategory', 'content_type', 'query_context']
-    for col in categorical_features:
-        if col in training_data.columns:
-            FEATURE_COLUMNS.append(col)
-    
-    # Add complexity features if they exist
-    complexity_features = ['has_numbers', 'has_punctuation', 'has_special_chars', 
-                          'has_technical_terms', 'sentence_count', 'avg_word_length', 'complexity_score']
-    for col in complexity_features:
-        if col in training_data.columns:
-            FEATURE_COLUMNS.append(col)
-    
-    # Target variables - only include what exists
-    TARGET_COLUMNS = []
-    
-    # Primary target (input tokens)
-    if 'query_token_count_real' in training_data.columns:
-        TARGET_COLUMNS.append('query_token_count_real')
-    
-    # Check if we have response data
-    has_response_data = 'response_token_count_real' in training_data.columns
-    
-    if has_response_data:
-        TARGET_COLUMNS.append('response_token_count_real')
-        # Calculate total tokens only if we have both input and output
-        training_data['total_tokens'] = (
-            training_data['query_token_count_real'] + 
-            training_data['response_token_count_real']
-        )
-        TARGET_COLUMNS.append('total_tokens')
-        print("✅ Response data found - including output token prediction")
-    else:
-        print("⚠️ No response data found - focusing on input token prediction only")
-    
-    # Create final training dataset with only existing columns
-    available_columns = [col for col in FEATURE_COLUMNS + TARGET_COLUMNS if col in training_data.columns]
-    
-    # Add dataset column if it exists
-    if 'dataset' in training_data.columns:
-        available_columns.append('dataset')
-    
-    final_features = training_data[available_columns].copy()
-    
-    # Add unique query ID
-    final_features['query_id'] = range(len(final_features))
-    
-    print(f"📋 FINAL TRAINING DATA STRUCTURE:")
-    print(f"   • Total samples: {len(final_features):,}")
-    print(f"   • Feature columns: {len([col for col in FEATURE_COLUMNS if col in final_features.columns])}")
-    print(f"   • Target columns: {len([col for col in TARGET_COLUMNS if col in final_features.columns])}")
-    
-    # Show actual features that made it
-    actual_features = [col for col in FEATURE_COLUMNS if col in final_features.columns]
-    actual_targets = [col for col in TARGET_COLUMNS if col in final_features.columns]
-    
-    print(f"\n📊 ACTUAL FEATURE COLUMNS ({len(actual_features)}):")
-    for i, col in enumerate(actual_features, 1):
-        print(f"   {i:2d}. {col}")
-    
-    print(f"\n📊 ACTUAL TARGET COLUMNS ({len(actual_targets)}):")
-    for i, col in enumerate(actual_targets, 1):
-        print(f"   {i:2d}. {col}")
-    
-    print(f"\n📊 SAMPLE OF FINAL TRAINING DATA:")
-    print(final_features.head())
-    
-    print(f"\n📊 TRAINING DATA STATISTICS:")
-    if actual_targets:
-        print(final_features[actual_targets].describe().round(2))
-    
-    # Check for missing values
-    missing_values = final_features[actual_features].isnull().sum()
-    print(f"\n📊 MISSING VALUES CHECK:")
-    if missing_values.sum() == 0:
-        print("   ✅ No missing values found in features")
-    else:
-        print("   ⚠️ Missing values found:")
-        for col, count in missing_values[missing_values > 0].items():
-            print(f"     • {col}: {count} missing")
-    
-    # Categorical encoding recommendations
-    print(f"\n📊 CATEGORICAL ENCODING RECOMMENDATIONS:")
-    categorical_cols = ['question_type', 'other_subcategory', 'content_type', 'query_context', 'dataset']
-    for col in categorical_cols:
-        if col in final_features.columns:
-            unique_values = final_features[col].nunique()
-            print(f"   • {col}: {unique_values} unique values")
-            if unique_values <= 10:
-                print(f"     - Recommendation: One-hot encoding")
-                print(f"     - Values: {list(final_features[col].unique())}")
-            else:
-                print(f"     - Recommendation: Label encoding or target encoding")
-    
-    # Save final training data (optional)
-    try:
-        final_features.to_csv('training_data_final.csv', index=False)
-        print(f"\n✅ Final training data saved to 'training_data_final.csv'")
-        print(f"   • Shape: {final_features.shape}")
-        print(f"   • Size: {final_features.memory_usage().sum() / 1024**2:.1f} MB")
-    except Exception as e:
-        print(f"\n⚠️ Could not save training data: {e}")
-    
-    print(f"\n🚀 NEXT STEPS FOR ML MODEL TRAINING:")
-    print("   1. One-hot encode categorical features")
-    print("   2. Split into train/validation/test sets (70/15/15)")
-    print("   3. Scale numerical features if needed")
-    
-    if has_response_data:
-        print("   4. Train separate models:")
-        print("      - Input token predictor (query_token_count_real)")
-        print("      - Output token predictor (response_token_count_real)")
-        print("      - Total token predictor (total_tokens)")
-        print("   5. Target accuracy: <15% MAPE for total tokens")
-    else:
-        print("   4. Train input token predictor model")
-        print("      - Target: query_token_count_real")
-        print("      - Target accuracy: <10% MAPE for input tokens")
-    
-    print("   6. Evaluate using MAPE (Mean Absolute Percentage Error)")
+100K examples, decent size
+Made with Llama 3.1 so should work well with your models
+Already filtered for quality
 
-print(f"\n🎉 TOKEN PREDICTOR EDA ANALYSIS COMPLETE!")
-print("=" * 60)
-print("📊 All statistics generated for JIRA ticket documentation")
-print("🔧 Improved categorization with single category per prompt validated")
-print("🔍 'Other' category refined analysis completed")
-print("📋 Final training data structure ready for ML pipeline")
-print("🚀 Ready for Phase 2: Model Training")
-```
+3. CodeForces
+https://huggingface.co/datasets/MariaStudio/Codeforces-Python-Submissions
+
+Programming contest problems and solutions
+Pretty consistent format
+Good for technical query patterns
+
+4. Natural Questions
+https://huggingface.co/datasets/google-research-datasets/natural_questions
+
+Actual Google search questions
+Mix of short and long answers
+Covers general knowledge stuff
+
+5. Mental Health Counseling
+https://huggingface.co/datasets/Amod/mental_health_counseling_conversations
+
+Long conversations with detailed responses
+Good for testing response length prediction
+Has follow-up questions and context
 
 # Akhil Metukuru's Personal Portfolio
 
