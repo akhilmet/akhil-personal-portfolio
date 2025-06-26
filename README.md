@@ -1,125 +1,152 @@
-## Cell 7: Statistical Analysis (FIXED)
+## Cell 16: Final Training Data Structure (FIXED)
 
 ```python
 # =============================================================================
-# STEP 4: COMPREHENSIVE STATISTICAL ANALYSIS (IMPROVED)
+# STEP 12: FINAL TRAINING DATA STRUCTURE FOR ML MODEL
 # =============================================================================
 
-print("\n📈 COMPREHENSIVE TOKEN ANALYSIS (Mistral Tokenizer)")
+print(f"\n🎯 FINAL TRAINING DATA STRUCTURE FOR ML MODEL")
 print("=" * 60)
 
-# Combine all datasets for overall analysis
-all_data = []
-for name, df in datasets.items():
-    if df is not None:
-        # Select relevant columns including new complexity features - FIXED COLUMN NAMES
-        columns_to_select = ['query_char_count', 'query_word_count', 'query_token_count_basic', 
-                           'query_token_count_real', 'question_type', 'other_subcategory',
-                           'content_type', 'query_context']
-        
-        # Add complexity features if they exist
-        complexity_cols = ['has_numbers', 'has_punctuation', 'has_special_chars', 
-                          'has_technical_terms', 'sentence_count', 'avg_word_length', 'complexity_score']
-        
-        # Only add columns that actually exist in the dataframe
-        available_cols = []
-        for col in columns_to_select + complexity_cols:
-            if col in df.columns:
-                available_cols.append(col)
-        
-        df_subset = df[available_cols].copy()
-        df_subset['dataset'] = name
-        all_data.append(df_subset)
-
 if all_data:
-    combined_df = pd.concat(all_data, ignore_index=True)
+    # Create final training dataset
+    training_data = combined_df.copy()
     
-    # Overall Statistics with REAL tokenizer comparison
-    print("\n📊 OVERALL QUERY STATISTICS (Real vs Estimation)")
-    print("-" * 40)
+    # Define features for ML training
+    FEATURE_COLUMNS = [
+        # Basic text metrics
+        'query_char_count',
+        'query_word_count'
+    ]
     
-    # Only include columns that exist
-    stats_cols = []
-    for col in ['query_char_count', 'query_word_count', 'query_token_count_basic', 'query_token_count_real']:
-        if col in combined_df.columns:
-            stats_cols.append(col)
+    # Add categorical features if they exist
+    categorical_features = ['question_type', 'other_subcategory', 'content_type', 'query_context']
+    for col in categorical_features:
+        if col in training_data.columns:
+            FEATURE_COLUMNS.append(col)
     
-    if stats_cols:
-        stats_summary = combined_df[stats_cols].describe()
-        print(stats_summary.round(2))
+    # Add complexity features if they exist
+    complexity_features = ['has_numbers', 'has_punctuation', 'has_special_chars', 
+                          'has_technical_terms', 'sentence_count', 'avg_word_length', 'complexity_score']
+    for col in complexity_features:
+        if col in training_data.columns:
+            FEATURE_COLUMNS.append(col)
     
-    # Method comparison
-    print("\n📊 TOKENIZER METHOD COMPARISON")
-    print("-" * 40)
+    # Target variables - only include what exists
+    TARGET_COLUMNS = []
     
-    if 'query_token_count_real' in combined_df.columns:
-        avg_real = combined_df['query_token_count_real'].mean()
-        
-        if 'query_token_count_basic' in combined_df.columns:
-            avg_basic = combined_df['query_token_count_basic'].mean()
-            basic_error = abs(avg_basic - avg_real) / avg_real * 100
-            print(f"Real Mistral Tokenizer:         {avg_real:.1f} avg tokens (GROUND TRUTH)")
-            print(f"Basic (chars/4):                {avg_basic:.1f} avg tokens ({basic_error:.1f}% error)")
-        else:
-            print(f"Real Mistral Tokenizer:         {avg_real:.1f} avg tokens (GROUND TRUTH)")
+    # Primary target (input tokens)
+    if 'query_token_count_real' in training_data.columns:
+        TARGET_COLUMNS.append('query_token_count_real')
     
-    # IMPROVED: Question type analysis (ensuring single category per prompt)
-    print("\n📊 IMPROVED QUESTION TYPE DISTRIBUTION")
-    print("-" * 40)
+    # Check if we have response data
+    has_response_data = 'response_token_count_real' in training_data.columns
     
-    if 'question_type' in combined_df.columns:
-        question_dist = combined_df['question_type'].value_counts()
-        print(question_dist)
-        print(f"\nPercentage distribution:")
-        print((question_dist / len(combined_df) * 100).round(2))
-        
-        # Validate single categorization
-        print(f"\nTotal queries: {len(combined_df)}")
-        print(f"Sum of all categories: {question_dist.sum()} ✅ Should match total")
+    if has_response_data:
+        TARGET_COLUMNS.append('response_token_count_real')
+        # Calculate total tokens only if we have both input and output
+        training_data['total_tokens'] = (
+            training_data['query_token_count_real'] + 
+            training_data['response_token_count_real']
+        )
+        TARGET_COLUMNS.append('total_tokens')
+        print("✅ Response data found - including output token prediction")
+    else:
+        print("⚠️ No response data found - focusing on input token prediction only")
     
-    # IMPROVED: 'Other' category deep dive
-    print("\n📊 'OTHER' CATEGORY REFINED ANALYSIS")
-    print("-" * 40)
+    # Create final training dataset with only existing columns
+    available_columns = [col for col in FEATURE_COLUMNS + TARGET_COLUMNS if col in training_data.columns]
     
-    if 'question_type' in combined_df.columns and 'other_subcategory' in combined_df.columns:
-        other_subset = combined_df[combined_df['question_type'] == 'other']
-        if len(other_subset) > 0:
-            other_subcategory_dist = other_subset['other_subcategory'].value_counts()
-            print(f"Total 'other' queries: {len(other_subset)} ({len(other_subset)/len(combined_df)*100:.1f}%)")
-            print("\nSubcategory breakdown:")
-            for subcat, count in other_subcategory_dist.items():
-                pct = count / len(other_subset) * 100
-                if 'query_token_count_real' in other_subset.columns:
-                    avg_tokens = other_subset[other_subset['other_subcategory'] == subcat]['query_token_count_real'].mean()
-                    print(f"   {subcat}: {count} queries ({pct:.1f}%, avg {avg_tokens:.1f} tokens)")
-                else:
-                    print(f"   {subcat}: {count} queries ({pct:.1f}%)")
-        else:
-            print("No 'other' category queries found.")
+    # Add dataset column if it exists
+    if 'dataset' in training_data.columns:
+        available_columns.append('dataset')
     
-    # Content type distribution
-    print("\n📊 CONTENT TYPE DISTRIBUTION")
-    print("-" * 40)
+    final_features = training_data[available_columns].copy()
     
-    if 'content_type' in combined_df.columns:
-        content_dist = combined_df['content_type'].value_counts()
-        print(content_dist)
-        print(f"\nPercentage distribution:")
-        print((content_dist / len(combined_df) * 100).round(2))
+    # Add unique query ID
+    final_features['query_id'] = range(len(final_features))
     
-    # Query context analysis (Independent vs Continuation)
-    print("\n📊 QUERY CONTEXT ANALYSIS (Independent vs Continuation)")
-    print("-" * 40)
+    print(f"📋 FINAL TRAINING DATA STRUCTURE:")
+    print(f"   • Total samples: {len(final_features):,}")
+    print(f"   • Feature columns: {len([col for col in FEATURE_COLUMNS if col in final_features.columns])}")
+    print(f"   • Target columns: {len([col for col in TARGET_COLUMNS if col in final_features.columns])}")
     
-    if 'query_context' in combined_df.columns:
-        context_dist = combined_df['query_context'].value_counts()
-        print(context_dist)
-        print(f"\nPercentage distribution:")
-        print((context_dist / len(combined_df) * 100).round(2))
-        
-else:
-    print("❌ No data available for analysis")
-    combined_df = None
+    # Show actual features that made it
+    actual_features = [col for col in FEATURE_COLUMNS if col in final_features.columns]
+    actual_targets = [col for col in TARGET_COLUMNS if col in final_features.columns]
+    
+    print(f"\n📊 ACTUAL FEATURE COLUMNS ({len(actual_features)}):")
+    for i, col in enumerate(actual_features, 1):
+        print(f"   {i:2d}. {col}")
+    
+    print(f"\n📊 ACTUAL TARGET COLUMNS ({len(actual_targets)}):")
+    for i, col in enumerate(actual_targets, 1):
+        print(f"   {i:2d}. {col}")
+    
+    print(f"\n📊 SAMPLE OF FINAL TRAINING DATA:")
+    print(final_features.head())
+    
+    print(f"\n📊 TRAINING DATA STATISTICS:")
+    if actual_targets:
+        print(final_features[actual_targets].describe().round(2))
+    
+    # Check for missing values
+    missing_values = final_features[actual_features].isnull().sum()
+    print(f"\n📊 MISSING VALUES CHECK:")
+    if missing_values.sum() == 0:
+        print("   ✅ No missing values found in features")
+    else:
+        print("   ⚠️ Missing values found:")
+        for col, count in missing_values[missing_values > 0].items():
+            print(f"     • {col}: {count} missing")
+    
+    # Categorical encoding recommendations
+    print(f"\n📊 CATEGORICAL ENCODING RECOMMENDATIONS:")
+    categorical_cols = ['question_type', 'other_subcategory', 'content_type', 'query_context', 'dataset']
+    for col in categorical_cols:
+        if col in final_features.columns:
+            unique_values = final_features[col].nunique()
+            print(f"   • {col}: {unique_values} unique values")
+            if unique_values <= 10:
+                print(f"     - Recommendation: One-hot encoding")
+                print(f"     - Values: {list(final_features[col].unique())}")
+            else:
+                print(f"     - Recommendation: Label encoding or target encoding")
+    
+    # Save final training data (optional)
+    try:
+        final_features.to_csv('training_data_final.csv', index=False)
+        print(f"\n✅ Final training data saved to 'training_data_final.csv'")
+        print(f"   • Shape: {final_features.shape}")
+        print(f"   • Size: {final_features.memory_usage().sum() / 1024**2:.1f} MB")
+    except Exception as e:
+        print(f"\n⚠️ Could not save training data: {e}")
+    
+    print(f"\n🚀 NEXT STEPS FOR ML MODEL TRAINING:")
+    print("   1. One-hot encode categorical features")
+    print("   2. Split into train/validation/test sets (70/15/15)")
+    print("   3. Scale numerical features if needed")
+    
+    if has_response_data:
+        print("   4. Train separate models:")
+        print("      - Input token predictor (query_token_count_real)")
+        print("      - Output token predictor (response_token_count_real)")
+        print("      - Total token predictor (total_tokens)")
+        print("   5. Target accuracy: <15% MAPE for total tokens")
+    else:
+        print("   4. Train input token predictor model")
+        print("      - Target: query_token_count_real")
+        print("      - Target accuracy: <10% MAPE for input tokens")
+    
+    print("   6. Evaluate using MAPE (Mean Absolute Percentage Error)")
+
+print(f"\n🎉 TOKEN PREDICTOR EDA ANALYSIS COMPLETE!")
+print("=" * 60)
+print("📊 All statistics generated for JIRA ticket documentation")
+print("🔧 Improved categorization with single category per prompt validated")
+print("🔍 'Other' category refined analysis completed")
+print("📋 Final training data structure ready for ML pipeline")
+print("🚀 Ready for Phase 2: Model Training")
 ```
 
 # Akhil Metukuru's Personal Portfolio
