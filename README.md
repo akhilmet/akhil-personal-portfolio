@@ -1,37 +1,98 @@
-1. OpenCodeInstruct
-https://huggingface.co/datasets/nvidia/OpenCodeInstruct
+## Cell 10: Conversation Visualizations (FIXED)
 
-Has tons of "write this code" prompts with actual code outputs
-Good mix of simple and complex stuff
-Basically what people will ask your models to do
+```python
+# =============================================================================
+# STEP 6B: CONVERSATION VISUALIZATIONS
+# =============================================================================
 
-2. Magpie-Llama-3.1-Pro-DPO-100K-v0.1
-https://huggingface.co/datasets/Magpie-Align/Magpie-Llama-3.1-Pro-DPO-100K-v0.1
-
-100K examples, decent size
-Made with Llama 3.1 so should work well with your models
-Already filtered for quality
-
-3. CodeForces
-https://huggingface.co/datasets/MariaStudio/Codeforces-Python-Submissions
-
-Programming contest problems and solutions
-Pretty consistent format
-Good for technical query patterns
-
-4. Natural Questions
-https://huggingface.co/datasets/google-research-datasets/natural_questions
-
-Actual Google search questions
-Mix of short and long answers
-Covers general knowledge stuff
-
-5. Mental Health Counseling
-https://huggingface.co/datasets/Amod/mental_health_counseling_conversations
-
-Long conversations with detailed responses
-Good for testing response length prediction
-Has follow-up questions and context
+if conversation_data:
+    # Create conversation analysis plots
+    fig, axes = plt.subplots(2, 3, figsize=(18, 12))
+    fig.suptitle('Conversation Analysis - Query vs Response Patterns', fontsize=14, fontweight='bold')
+    
+    # Query vs Response scatter
+    if 'query_token_count_real' in conv_df.columns and 'response_token_count_real' in conv_df.columns:
+        axes[0, 0].scatter(conv_df['query_token_count_real'], conv_df['response_token_count_real'], alpha=0.6, s=20)
+        axes[0, 0].set_title('Query Tokens vs Response Tokens')
+        axes[0, 0].set_xlabel('Query Token Count (Real)')
+        axes[0, 0].set_ylabel('Response Token Count (Real)')
+        axes[0, 0].grid(True, alpha=0.3)
+    else:
+        axes[0, 0].text(0.5, 0.5, 'No token count data available', ha='center', va='center', transform=axes[0, 0].transAxes)
+        axes[0, 0].set_title('Query vs Response Tokens')
+    
+    # Response length distribution
+    if 'response_token_count_real' in conv_df.columns:
+        axes[0, 1].hist(conv_df['response_token_count_real'], bins=50, alpha=0.7, color='lightcoral', edgecolor='black')
+        axes[0, 1].set_title('Response Token Distribution')
+        axes[0, 1].set_xlabel('Response Token Count')
+        axes[0, 1].set_ylabel('Frequency')
+        axes[0, 1].grid(True, alpha=0.3)
+    else:
+        axes[0, 1].text(0.5, 0.5, 'No response token data', ha='center', va='center', transform=axes[0, 1].transAxes)
+        axes[0, 1].set_title('Response Token Distribution')
+    
+    # Total tokens (query + response)
+    if 'query_token_count_real' in conv_df.columns and 'response_token_count_real' in conv_df.columns:
+        conv_df['total_tokens'] = conv_df['query_token_count_real'] + conv_df['response_token_count_real']
+        axes[0, 2].hist(conv_df['total_tokens'], bins=50, alpha=0.7, color='lightblue', edgecolor='black')
+        axes[0, 2].set_title('Total Conversation Tokens')
+        axes[0, 2].set_xlabel('Total Token Count')
+        axes[0, 2].set_ylabel('Frequency')
+        axes[0, 2].grid(True, alpha=0.3)
+    else:
+        axes[0, 2].text(0.5, 0.5, 'Cannot calculate total tokens', ha='center', va='center', transform=axes[0, 2].transAxes)
+        axes[0, 2].set_title('Total Conversation Tokens')
+    
+    # Response length by question type
+    if 'question_type' in conv_df.columns and 'response_token_count_real' in conv_df.columns:
+        sns.boxplot(data=conv_df, x='question_type', y='response_token_count_real', ax=axes[1, 0])
+        axes[1, 0].set_title('Response Length by Question Type')
+        axes[1, 0].tick_params(axis='x', rotation=45)
+        axes[1, 0].grid(True, alpha=0.3)
+    else:
+        axes[1, 0].text(0.5, 0.5, 'No question type or response data', ha='center', va='center', transform=axes[1, 0].transAxes)
+        axes[1, 0].set_title('Response Length by Question Type')
+    
+    # Response length by query context
+    if 'query_context' in conv_df.columns and 'response_token_count_real' in conv_df.columns:
+        sns.boxplot(data=conv_df, x='query_context', y='response_token_count_real', ax=axes[1, 1])
+        axes[1, 1].set_title('Response Length by Query Context')
+        axes[1, 1].set_xlabel('Query Context')
+        axes[1, 1].set_ylabel('Response Token Count')
+        axes[1, 1].grid(True, alpha=0.3)
+    else:
+        axes[1, 1].text(0.5, 0.5, 'No context or response data', ha='center', va='center', transform=axes[1, 1].transAxes)
+        axes[1, 1].set_title('Response Length by Query Context')
+    
+    # Response vs Complexity (if complexity score exists)
+    if 'complexity_score' in conv_df.columns and 'response_token_count_real' in conv_df.columns:
+        complexity_response = conv_df.groupby('complexity_score')['response_token_count_real'].mean()
+        axes[1, 2].bar(complexity_response.index, complexity_response.values, 
+                      color='orange', alpha=0.7, edgecolor='black')
+        axes[1, 2].set_title('Average Response Length by Complexity')
+        axes[1, 2].set_xlabel('Complexity Score')
+        axes[1, 2].set_ylabel('Average Response Tokens')
+        axes[1, 2].grid(True, alpha=0.3)
+    else:
+        # Fallback: show dataset distribution if available
+        if 'dataset' in conv_df.columns:
+            dataset_counts = conv_df['dataset'].value_counts()
+            axes[1, 2].bar(dataset_counts.index, dataset_counts.values, color='purple', alpha=0.7, edgecolor='black')
+            axes[1, 2].set_title('Conversation Data by Dataset')
+            axes[1, 2].set_xlabel('Dataset')
+            axes[1, 2].set_ylabel('Count')
+            axes[1, 2].tick_params(axis='x', rotation=45)
+            axes[1, 2].grid(True, alpha=0.3)
+        else:
+            axes[1, 2].text(0.5, 0.5, 'No complexity data available', ha='center', va='center', transform=axes[1, 2].transAxes)
+            axes[1, 2].set_title('Response Analysis')
+    
+    plt.tight_layout()
+    plt.show()
+else:
+    print("⚠️ No conversation visualizations created - no response data available")
+```
 
 # Akhil Metukuru's Personal Portfolio
 
