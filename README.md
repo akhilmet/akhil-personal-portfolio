@@ -1,7 +1,27 @@
-Real token counting beats the basic method by a lot - The Mistral tokenizer is about 15% more accurate than chars/4. Definitely use the query_token_count_real features since that's what'll actually run in production.
-• The 'other' category split is actually pretty useful - Instead of 53% of stuff just being "other", it got broken down into: imperative_request (list, describe, explain), yes_no_question (is, are, do, does), comparative (better, worse, vs), help_request (support, trouble, problem), creative_generation (write, create, make), analysis_request (analyze, evaluate, assess), opinion_request (recommend, suggest), calculation (compute, solve), and unclassified_other. Each one has different response patterns you can use.
-• Watch out for the content_type feature - These datasets are basically all natural language so the code vs text detection probably won't work great. Maybe use it as backup or just skip it until we get actual code request data.
-• Simple vs complex queries have huge response gaps - The "continuation" stuff is really just multi-part questions that need long explanations (71 avg tokens) vs simple one-liner questions (9 avg tokens). This query_context feature is probably your best bet for predicting response length - complex multi-thought queries need way more tokens to answer properly.
+def is_natural_language_or_code(text):
+    """Determine if query is natural language or code request - FIXED VERSION"""
+    if pd.isna(text):
+        return "unknown"
+    
+    text_lower = str(text).lower()
+    
+    # FIXED: Use word boundaries to prevent partial matches
+    code_patterns = [
+        r'\bfunction\b', r'\bdef\b', r'\bclass\b', r'\bimport\b', r'\breturn\b', 
+        r'\bprint\(', r'\bcode\b', r'\bscript\b', r'\bprogram\b', r'\balgorithm\b', 
+        r'\bpython\b', r'\bjavascript\b', r'\bhtml\b', r'\bcss\b', r'\bsql\b', 
+        r'\bquery\b', r'\bdatabase\b', r'\bplot\b', r'\bcalculate\b',
+        r'\bvariable\b', r'\bloop\b', r'\barray\b', r'\bobject\b', r'\bmethod\b',
+        r'\bapi\b', r'\bjson\b', r'\bxml\b', r'\bhttp\b'
+    ]
+    
+    # Use re.search with word boundaries instead of simple 'in' check
+    import re
+    for pattern in code_patterns:
+        if re.search(pattern, text_lower):
+            return "code_request"
+    
+    return "natural_language"
 
 # Akhil Metukuru's Personal Portfolio
 
