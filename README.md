@@ -1,3 +1,5 @@
+```
+
 def is_natural_language_or_code(text):
     """Determine if query is natural language or code request - FIXED VERSION"""
     if pd.isna(text):
@@ -22,7 +24,7 @@ def is_natural_language_or_code(text):
             return "code_request"
     
     return "natural_language"
-
+```
 # Akhil Metukuru's Personal Portfolio
 
 Welcome to my personal portfolio! Here you'll find all my latest work, skills, and experiences. I'm excited to share my journey and achievements with you.
