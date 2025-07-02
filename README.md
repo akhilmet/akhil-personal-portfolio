@@ -28,7 +28,8 @@ def is_natural_language_or_code(text: str) -> int:
     
     text_lower = str(text).lower()
     words = text_lower.split()
-    
+    <img width="348" alt="Screenshot 2025-07-02 at 11 22 35 AM" src="https://github.com/user-attachments/assets/3319d0f4-2fc5-4736-aa50-366c6968ac0e" />
+
     # ENHANCED: Comprehensive code keywords as complete words
     CODE_KEYWORDS = {
         # Core Programming & Language Names
