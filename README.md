@@ -1,3 +1,5 @@
+```python
+
 # Enhanced utils.py with ALL EDA features
 from mistral_common.tokens.tokenizers.mistral import MistralTokenizer
 from mistral_common.protocol.instruct.messages import UserMessage
@@ -351,7 +353,7 @@ def extract_all_features(text):
     }
     
     return all_features
-
+```
 
 # Akhil Metukuru's Personal Portfolio
 
