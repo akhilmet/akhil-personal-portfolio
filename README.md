@@ -1,3 +1,5 @@
+Hey! I ran your Random Forest model with all the EDA features we extracted and got some pretty solid results. Instead of just the basic 7 features you were using, I threw in everything - complexity scores, text metrics, punctuation density, caps ratios, encoded question types, subcategories, the works. The model improved quite a bit - got down to 13.75 MAE compared to your original ~31 MAE, and the R² jumped to 0.87 which is really good. Most interesting finding is that complexity_score, word_count, and char_count turned out to be the top predictors, way more important than the original category features. Also tested XGBoost with the same features and got 14.78 MAE, so Random Forest is still winning but both are crushing the linear regression approach. Looks like all that extra feature engineering from the EDA was definitely worth it - the text complexity stuff is way more predictive than we thought.RetryClaude can make mistakes. Please double-check responses.
+
 # Akhil Metukuru's Personal Portfolio
 
 Welcome to my personal portfolio! Here you'll find all my latest work, skills, and experiences. I'm excited to share my journey and achievements with you.
