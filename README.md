@@ -1,54 +1,33 @@
-```
+What Each Component Measures:
 
-# Cell 6: XGBoost with ALL Features - FIXED
-print(f"\n🚀 XGBOOST MODEL - ALL FEATURES")
-print("=" * 50)
+Word Count (×0.1): Base complexity from query length
+Sentence Count (×0.2): Multi-sentence queries need detailed responses
+Average Word Length (×0.2): Longer words = more sophisticated vocabulary
+Unique Word Count (×0.1): Vocabulary diversity indicates topic breadth
+Has Numbers (×0.1): Numerical data often requires calculations/explanations
+Has Punctuation (×0.1): Complex sentence structures
+Has Special Characters (×0.1): Technical symbols, formatting needs
+Has Technical Terms (×0.1): Technical vocabulary requires detailed explanations
+Punctuation Density (×10): High weight because punctuation indicates question complexity
+Capitalization Ratio (×5): Emphasis/urgency markers
 
-import xgboost as xgb
+Real-World Examples:
+Low Complexity (Score: ~2-5)
 
-# Simple XGBoost parameters without early stopping
-xgb_regressor = xgb.XGBRegressor(
-    objective='reg:squarederror',
-    n_estimators=200,
-    learning_rate=0.1,
-    max_depth=8,
-    subsample=0.8,
-    colsample_bytree=0.8,
-    random_state=42,
-    n_jobs=-1
-)
+"What is Python?"
+Simple question, short response expected
 
-print("🔄 Training XGBoost...")
+Medium Complexity (Score: ~8-15)
 
-# Train on full training set without early stopping
-xgb_regressor.fit(X_train, y_train)
+"How do I implement a binary search algorithm in Python with error handling?"
+Multi-part technical question requiring code examples
 
-# Predictions
-y_pred_xgb = xgb_regressor.predict(X_test)
+High Complexity (Score: ~20+)
 
-# Calculate metrics
-mae_xgb = mean_absolute_error(y_test, y_pred_xgb)
-mse_xgb = mean_squared_error(y_test, y_pred_xgb)
-r2_xgb = r2_score(y_test, y_pred_xgb)
+"Can you explain the differences between various machine learning algorithms, provide implementation examples, compare their performance metrics, and recommend which one to use for time-series forecasting with irregular intervals?"
+Multiple concepts, requires comprehensive explanation
 
-print(f"\n--- XGBoost Model Evaluation (ALL FEATURES) ---")
-print(f"Mean Absolute Error (MAE): {mae_xgb:.2f}")
-print(f"Mean Squared Error (MSE): {mse_xgb:.2f}")
-print(f"R-squared (R²): {r2_xgb:.2f}")
-print("=" * 40)
 
-# XGBoost Feature Importance
-print("\n📊 XGBoost Feature Importance (Top 15):")
-xgb_importances = xgb_regressor.feature_importances_
-xgb_feature_importance_df = pd.DataFrame({
-    'feature': X.columns,
-    'importance': xgb_importances
-}).sort_values(by='importance', ascending=False)
-
-for i, (_, row) in enumerate(xgb_feature_importance_df.head(15).iterrows()):
-    print(f"{i+1:2d}. {row['feature']:<25} {row['importance']:.6f}")
-
-```
 # Akhil Metukuru's Personal Portfolio
 
 Welcome to my personal portfolio! Here you'll find all my latest work, skills, and experiences. I'm excited to share my journey and achievements with you.
