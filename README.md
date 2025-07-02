@@ -6,38 +6,49 @@ print("=" * 50)
 
 import xgboost as xgb
 
-# Enhanced XGBoost parameters - REMOVED early_stopping_rounds from init
+# Simple XGBoost parameters without early stopping
 xgb_regressor = xgb.XGBRegressor(
     objective='reg:squarederror',
-    n_estimators=300,
+    n_estimators=200,
     learning_rate=0.1,
     max_depth=8,
     subsample=0.8,
     colsample_bytree=0.8,
     random_state=42,
-    n_jobs=-1,
-    eval_metric='mae'
+    n_jobs=-1
 )
 
 print("🔄 Training XGBoost...")
-# Split training data for validation
-X_train_split, X_val_split, y_train_split, y_val_split = train_test_split(
-    X_train, y_train, test_size=0.2, random_state=42
-)
 
-# Fit with early stopping in the fit method instead
-xgb_regressor.fit(
-    X_train_split, y_train_split,
-    eval_set=[(X_val_split, y_val_split)],
-    early_stopping_rounds=50,  # Move early_stopping_rounds here
-    verbose=False
-)
+# Train on full training set without early stopping
+xgb_regressor.fit(X_train, y_train)
 
-# Rest of the code stays the same...
+# Predictions
 y_pred_xgb = xgb_regressor.predict(X_test)
 
-```
+# Calculate metrics
+mae_xgb = mean_absolute_error(y_test, y_pred_xgb)
+mse_xgb = mean_squared_error(y_test, y_pred_xgb)
+r2_xgb = r2_score(y_test, y_pred_xgb)
 
+print(f"\n--- XGBoost Model Evaluation (ALL FEATURES) ---")
+print(f"Mean Absolute Error (MAE): {mae_xgb:.2f}")
+print(f"Mean Squared Error (MSE): {mse_xgb:.2f}")
+print(f"R-squared (R²): {r2_xgb:.2f}")
+print("=" * 40)
+
+# XGBoost Feature Importance
+print("\n📊 XGBoost Feature Importance (Top 15):")
+xgb_importances = xgb_regressor.feature_importances_
+xgb_feature_importance_df = pd.DataFrame({
+    'feature': X.columns,
+    'importance': xgb_importances
+}).sort_values(by='importance', ascending=False)
+
+for i, (_, row) in enumerate(xgb_feature_importance_df.head(15).iterrows()):
+    print(f"{i+1:2d}. {row['feature']:<25} {row['importance']:.6f}")
+
+```
 # Akhil Metukuru's Personal Portfolio
 
 Welcome to my personal portfolio! Here you'll find all my latest work, skills, and experiences. I'm excited to share my journey and achievements with you.
