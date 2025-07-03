@@ -1,3 +1,13 @@
+Hey! 👋 Just finished running that random sampling analysis on the token predictor and pushed the results to the token-predictor-finetuned branch. You were totally right about the overfitting - the random noise baseline confirmed we had way too many features doing more harm than good. The analysis gave us a clear priority ranking of which features actually matter vs just statistical noise.
+Key Takeaways:
+
+Top priority: complexity_score, unique_word_count, char_count, word_count
+Second tier: query_token_length, punctuation_density, avg_word_length, sentence_count
+Supporting: caps_ratio, query_context_encoded, has_technical_terms, category3
+Optimal feature count: 12-15 features total
+
+The random sampling approach worked great for identifying the signal vs noise
+
 # Akhil Metukuru's Personal Portfolio
 
 Welcome to my personal portfolio! Here you'll find all my latest work, skills, and experiences. I'm excited to share my journey and achievements with you.
