@@ -1,434 +1,341 @@
-```
-# token_estimator_feature_collection.py - Optimized Feature Extraction for Token Predictor
-# Only includes features that performed above random baseline
-# Uses EXACT categorical functions from original training for encoding consistency
+# Model Retraining Notebook - Random Forest with Optimized Features
+# Retrain the Random Forest model using the optimized token_estimator_feature_collection.py
 
-import re
-import string
-import pandas as pd
+```python
+# Cell 1: Import Libraries
 import numpy as np
+import pandas as pd
+import pickle
+import joblib
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.preprocessing import LabelEncoder
-from mistral_common.tokens.tokenizers.mistral import MistralTokenizer
+import warnings
+warnings.filterwarnings('ignore')
 
-# Initialize tokenizer
-tokenizer = MistralTokenizer.v3()
+# Import our optimized feature extraction
+from token_estimator_feature_collection import extract_optimized_features, get_label_encoders
 
-# Global label encoders for categorical features (matching training exactly)
-_label_encoders = {}
-
-def _get_or_create_encoder(feature_name, values):
-    """Get or create a label encoder for a categorical feature"""
-    if feature_name not in _label_encoders:
-        _label_encoders[feature_name] = LabelEncoder()
-        # Fit with all possible values to ensure consistency with training
-        _label_encoders[feature_name].fit(values)
-    return _label_encoders[feature_name]
-
-# QueryCategorizationRule pattern implementation
-class QueryCategorizationRule:
-    """Abstract base class for query categorization rules"""
-    def __init__(self, category):
-        self.category = category
-    
-    def execute(self, query_text):
-        """Return True/False if the category applies"""
-        raise NotImplementedError()
-
-class SummaryCategory(QueryCategorizationRule):
-    """Category 3: Summary/Analysis requests (HIGHEST PRIORITY)"""
-    def execute(self, query_text):
-        text_lower = query_text.lower()
-        summary_keywords = ['summary', 'summarize', 'tldr', 'key points', 'main points', 
-                           'overview', 'brief', 'analyze', 'analysis', 'review']
-        return any(keyword in text_lower for keyword in summary_keywords)
-
-class CodeCategory(QueryCategorizationRule):
-    """Category 2: Code requests (HIGH PRIORITY)"""
-    def execute(self, query_text):
-        text_lower = query_text.lower()
-        code_keywords = ['code', 'function', 'script', 'programming', 'algorithm',
-                        'implement', 'write a', 'create a function', 'debug', 'fix']
-        return any(keyword in text_lower for keyword in code_keywords)
-
-class QuestionCategory(QueryCategorizationRule):
-    """Category 1: Questions (MEDIUM PRIORITY)"""
-    def execute(self, query_text):
-        text_lower = query_text.lower().strip()
-        first_word = text_lower.split()[0] if text_lower.split() else ''
-        
-        question_starters = ['how', 'what', 'why', 'when', 'where', 'who', 
-                           'can', 'could', 'would', 'should', 'is', 'are', 
-                           'was', 'were', 'do', 'does', 'did']
-        
-        return first_word in question_starters or query_text.strip().endswith('?')
-
-class ExplanationCategory(QueryCategorizationRule):
-    """Category 0: Explanations/Instructions (DEFAULT)"""
-    def execute(self, query_text):
-        text_lower = query_text.lower()
-        explain_keywords = ['explain', 'tell me', 'describe', 'what is', 'how to']
-        return any(keyword in text_lower for keyword in explain_keywords)
-
-class CreativeCategory(QueryCategorizationRule):
-    """Category 4: Creative requests"""
-    def execute(self, query_text):
-        text_lower = query_text.lower()
-        creative_keywords = ['write a story', 'poem', 'creative', 'imagine', 'fiction']
-        return any(keyword in text_lower for keyword in creative_keywords)
-
-class DataCategory(QueryCategorizationRule):
-    """Category 5: Data/Research requests"""
-    def execute(self, query_text):
-        text_lower = query_text.lower()
-        data_keywords = ['data', 'research', 'statistics', 'numbers', 'calculate']
-        return any(keyword in text_lower for keyword in data_keywords)
-
-class OtherCategory(QueryCategorizationRule):
-    """Category 6: Other/General (FALLBACK)"""
-    def execute(self, query_text):
-        return True  # Always matches as fallback
-
-class TokenEstimatorFeatureCollection:
-    """
-    Feature collection class for token predictor.
-    Can be instantiated per request or used as singleton.
-    Uses EXACT categorical functions from original training.
-    """
-    
-    def __init__(self, feature_config=None):
-        """Initialize with optional feature configuration"""
-        self.config = feature_config or {}
-        self._initialize_encoders()
-    
-    def _initialize_encoders(self):
-        """Initialize label encoders for categorical features with EXACT training values"""
-        # EXACT categorical values from original training
-        question_types = ["who", "what", "how", "where", "when", "why", "other"]
-        other_subcategories = ["imperative_request", "yes_no_question", "comparative", 
-                              "help_request", "creative_generation", "analysis_request", 
-                              "opinion_request", "calculation", "unclassified_other"]
-        query_contexts = ["continuation", "independent", "unknown"]
-        
-        # Initialize encoders with exact training values
-        _get_or_create_encoder('question_type', question_types)
-        _get_or_create_encoder('other_subcategory', other_subcategories)
-        _get_or_create_encoder('query_context', query_contexts)
-    
-    def preprocess(self, query):
-        """Any preprocessing on the input query"""
-        return query
-    
-    def engineer_features(self, processed_query):
-        """Extract features from the processed query"""
-        return self.extract_optimized_features(processed_query)
-    
-    def get_features(self, query):
-        """Exposed method to the router ensemble"""
-        processed_query = self.preprocess(query)
-        feature_vector = self.engineer_features(processed_query)
-        return feature_vector
-    
-    def get_token_length(self, text):
-        """Get accurate token count using MistralTokenizer"""
-        try:
-            tokens = tokenizer.encode(text)
-            return len(tokens)
-        except Exception as e:
-            # Fallback to character-based estimation
-            return max(1, len(text) // 4)
-
-    def categorize_query(self, text):
-        """
-        Categorize query into one of 7 categories using QueryCategorizationRule pattern.
-        Rules are evaluated in sequence with priority logic.
-        """
-        # Initialize rule classes and evaluate in sequence
-        rules = [
-            SummaryCategory(3),
-            CodeCategory(2), 
-            QuestionCategory(1),
-            ExplanationCategory(0),
-            CreativeCategory(4),
-            DataCategory(5),
-            OtherCategory(6)
-        ]
-        
-        # Run through rules in sequence and return first match
-        for rule in rules:
-            if rule.execute(text):
-                return rule.category
-        
-        # Default fallback
-        return 6
-
-    def extract_text_complexity_features(self, text):
-        """Extract text complexity and linguistic features"""
-        # Basic text metrics
-        words = text.split()
-        word_count = len(words)
-        char_count = len(text)
-        
-        # Average word length
-        avg_word_length = sum(len(word) for word in words) / max(1, word_count)
-        
-        # Punctuation density
-        punctuation_count = sum(1 for char in text if char in string.punctuation)
-        punctuation_density = punctuation_count / max(1, char_count)
-        
-        # Capitalization ratio
-        caps_count = sum(1 for char in text if char.isupper())
-        caps_ratio = caps_count / max(1, char_count)
-        
-        # Question detection
-        has_questions = 1 if '?' in text else 0
-        
-        # Complexity score (weighted combination)
-        complexity_score = (
-            (len(set(word.lower().strip(string.punctuation) for word in words)) / max(1, word_count)) * 0.3 +  # Vocabulary diversity
-            (avg_word_length / 10) * 0.2 +                    # Word complexity
-            (len(re.split(r'[.!?]+', text.strip())) / max(1, word_count / 15)) * 0.2 + # Sentence structure
-            punctuation_density * 0.3                          # Punctuation complexity
-        )
-        
-        return {
-            'word_count': word_count,
-            'char_count': char_count,
-            'avg_word_length': avg_word_length,
-            'punctuation_density': punctuation_density,
-            'caps_ratio': caps_ratio,
-            'has_questions': has_questions,
-            'complexity_score': complexity_score
-        }
-
-    def categorize_question_type_improved(self, text):
-        """
-        EXACT function from original training - Single category per prompt with priority order
-        """
-        if pd.isna(text):
-            return "unknown"
-        
-        text_lower = str(text).lower()
-        
-        # Priority order: who > what > how > where > when > why > other
-        if any(word in text_lower for word in ['who', 'whom', 'whose']):
-            return "who"
-        elif any(word in text_lower for word in ['what', "what's", 'which']):
-            return "what"
-        elif any(word in text_lower for word in ['how', "how's", 'how to', 'how do', 'how can']):
-            return "how"
-        elif any(word in text_lower for word in ['where', "where's", 'where is', 'where are']):
-            return "where"
-        elif any(word in text_lower for word in ['when', "when's", 'when is', 'when do']):
-            return "when"
-        elif any(word in text_lower for word in ['why', "why's", 'why do', 'why is']):
-            return "why"
-        else:
-            return "other"
-
-    def analyze_other_category(self, text):
-        """
-        EXACT function from original training - Refined analysis of 'other' category queries
-        """
-        if pd.isna(text):
-            return "unknown"
-        
-        text_lower = str(text).lower().strip()
-        
-        # Imperative commands
-        if any(text_lower.startswith(word) for word in ['list', 'describe', 'explain', 'tell me', 'show me', 'give me']):
-            return "imperative_request"
-        
-        # Yes/No questions  
-        if any(text_lower.startswith(word) for word in ['is', 'are', 'do', 'does', 'can', 'will', 'would', 'should']):
-            return "yes_no_question"
-        
-        # Comparative questions
-        if any(word in text_lower for word in ['compare', 'difference', 'better', 'worse', 'vs', 'versus']):
-            return "comparative"
-        
-        # Help/Support requests
-        if any(word in text_lower for word in ['help', 'support', 'assist', 'trouble', 'problem', 'issue']):
-            return "help_request"
-        
-        # Creative/Generation requests
-        if any(word in text_lower for word in ['write', 'create', 'generate', 'make', 'build', 'design']):
-            return "creative_generation"
-        
-        # Analysis/Evaluation requests
-        if any(word in text_lower for word in ['analyze', 'evaluate', 'assess', 'review', 'examine']):
-            return "analysis_request"
-        
-        # Opinion/Recommendation requests
-        if any(word in text_lower for word in ['recommend', 'suggest', 'opinion', 'think', 'believe']):
-            return "opinion_request"
-        
-        # Calculation/Math requests
-        if any(word in text_lower for word in ['calculate', 'compute', 'solve', '%', '$', 'equation']):
-            return "calculation"
-        
-        return "unclassified_other"
-
-    def is_independent_or_continuation(self, text):
-        """
-        EXACT function from original training - Determine if query is independent or multi-thought
-        """
-        if pd.isna(text):
-            return "unknown"
-        
-        text_lower = str(text).lower()
-        
-        # Multi-thought indicators
-        continuation_patterns = [
-            'also', 'and', 'but', 'however', 'additionally', 'furthermore',
-            'what about', 'how about', 'can you also', 'tell me more',
-            'continue', 'next', 'then', 'after that', 'moreover', 'besides',
-            'in addition', 'similarly', 'likewise', 'on the other hand'
-        ]
-        
-        # Independent indicators
-        independent_patterns = [
-            'i need help', 'can you help', 'i want to', 'how do i',
-            'what is', 'please explain', 'tell me about', 'help me with',
-            'i would like', 'could you please'
-        ]
-        
-        if any(pattern in text_lower for pattern in continuation_patterns):
-            return "continuation"
-        elif any(pattern in text_lower for pattern in independent_patterns):
-            return "independent"
-        else:
-            # Use text length as indicator
-            word_count = len(text.split())
-            if word_count > 20:  # Longer queries often multi-thought
-                return "continuation"
-            else:
-                return "independent"
-
-    def extract_optimized_features(self, text):
-        """
-        Extract only the features that performed above random baseline.
-        Uses EXACT categorical functions from original training for encoding consistency.
-        
-        Removed features based on peer review:
-        - nlp_vs_code (removed per feedback #2)
-        - sentence_count and unique_word_count (removed per feedback #4)
-        
-        Features kept (in order of importance):
-        1. complexity_score
-        2. word_count  
-        3. has_questions
-        4. query_token_length
-        5. char_count
-        6. caps_ratio
-        7. punctuation_density
-        8. avg_word_length
-        Plus categorical features that were above threshold (ENCODED with training consistency)
-        """
-        
-        # Get basic metrics
-        query_token_length = self.get_token_length(text)
-        
-        # Get category (single category with priority logic)
-        primary_category = self.categorize_query(text)
-        
-        # Create category features (above threshold only)
-        category_features = {}
-        # Only include categories that were above random threshold
-        for i in range(7):
-            category_features[f'category{i}'] = 1 if i == primary_category else 0
-        
-        # Get complexity features
-        complexity_features = self.extract_text_complexity_features(text)
-        
-        # Get categorical features using EXACT original training functions
-        question_type = self.categorize_question_type_improved(text)
-        other_subcategory = self.analyze_other_category(text)
-        query_context = self.is_independent_or_continuation(text)
-        
-        # ENCODE categorical features for ML model using EXACT training encodings
-        question_type_encoded = _get_or_create_encoder('question_type', []).transform([question_type])[0]
-        other_subcategory_encoded = _get_or_create_encoder('other_subcategory', []).transform([other_subcategory])[0]
-        query_context_encoded = _get_or_create_encoder('query_context', []).transform([query_context])[0]
-        
-        # Combine all optimized features (removed nlp_vs_code, sentence_count, unique_word_count)
-        features = {
-            # Core features (highest importance)
-            'complexity_score': complexity_features['complexity_score'],
-            'word_count': complexity_features['word_count'],
-            'has_questions': complexity_features['has_questions'],
-            'query_token_length': query_token_length,
-            'char_count': complexity_features['char_count'],
-            'caps_ratio': complexity_features['caps_ratio'],
-            'punctuation_density': complexity_features['punctuation_density'],
-            'avg_word_length': complexity_features['avg_word_length'],
-            
-            # Category features (above threshold only)
-            **category_features,
-            
-            # Categorical features (ENCODED for ML model with training consistency)
-            'question_type_encoded': question_type_encoded,
-            'other_subcategory_encoded': other_subcategory_encoded,
-            'query_context_encoded': query_context_encoded,
-            
-            # Raw categorical features (for reference)
-            'question_type': question_type,
-            'other_subcategory': other_subcategory,
-            'query_context': query_context
-        }
-        
-        return features
-
-# Standalone functions for backward compatibility
-def get_token_length(text):
-    """Get accurate token count using MistralTokenizer"""
-    try:
-        tokens = tokenizer.encode(text)
-        return len(tokens)
-    except Exception as e:
-        # Fallback to character-based estimation
-        return max(1, len(text) // 4)
-
-def categorize_query(text):
-    """Categorize query into one of 7 categories with priority logic"""
-    feature_collector = TokenEstimatorFeatureCollection()
-    return feature_collector.categorize_query(text)
-
-def extract_all_features(text):
-    """Extract all features - main entry point"""
-    feature_collector = TokenEstimatorFeatureCollection()
-    return feature_collector.extract_optimized_features(text)
-
-def extract_optimized_features(text):
-    """Extract optimized features - main entry point"""
-    feature_collector = TokenEstimatorFeatureCollection()
-    return feature_collector.extract_optimized_features(text)
-
-# Original training functions for exact compatibility
-def categorize_question_type_improved(text):
-    """EXACT function from original training"""
-    feature_collector = TokenEstimatorFeatureCollection()
-    return feature_collector.categorize_question_type_improved(text)
-
-def analyze_other_category(text):
-    """EXACT function from original training"""
-    feature_collector = TokenEstimatorFeatureCollection()
-    return feature_collector.analyze_other_category(text)
-
-def is_independent_or_continuation(text):
-    """EXACT function from original training"""
-    feature_collector = TokenEstimatorFeatureCollection()
-    return feature_collector.is_independent_or_continuation(text)
-
-# Utility functions for encoder management
-def get_label_encoders():
-    """Get the current label encoders for saving/loading"""
-    return _label_encoders
-
-def set_label_encoders(encoders):
-    """Set the label encoders (for loading from saved state)"""
-    global _label_encoders
-    _label_encoders = encoders
+print("🚀 Starting Random Forest Model Retraining")
+print("Using optimized features from token_estimator_feature_collection.py")
 ```
+
+```python
+# Cell 2: Load Training Data
+print("📂 Loading training data...")
+
+# Load the original training dataset
+training_df = pd.read_csv('../testing/training_data.csv')
+print(f"✅ Loaded training data: {training_df.shape}")
+print(f"   Columns: {list(training_df.columns)}")
+print(f"   Target range: {training_df['response_length'].min():.0f} - {training_df['response_length'].max():.0f} tokens")
+print(f"   Target mean: {training_df['response_length'].mean():.1f} ± {training_df['response_length'].std():.1f}")
+```
+
+```python
+# Cell 3: Extract Optimized Features
+print("\n🔧 Extracting optimized features for all samples...")
+
+# Extract features using the optimized feature collection
+all_features_list = []
+failed_extractions = 0
+
+for idx, row in training_df.iterrows():
+    try:
+        query = row['Query']
+        response_length = row['response_length']
+        
+        # Extract optimized features
+        features = extract_optimized_features(query)
+        features['response_length'] = response_length
+        features['original_index'] = idx
+        
+        all_features_list.append(features)
+        
+        if idx % 1000 == 0:
+            print(f"   Processed {idx:,} queries...")
+            
+    except Exception as e:
+        print(f"   ⚠️ Failed to extract features for query {idx}: {str(e)}")
+        failed_extractions += 1
+        continue
+
+# Convert to DataFrame
+features_df = pd.DataFrame(all_features_list)
+print(f"✅ Feature extraction complete: {features_df.shape}")
+print(f"   Successful extractions: {len(all_features_list):,}")
+print(f"   Failed extractions: {failed_extractions}")
+
+# Display feature summary
+print(f"\n📊 Feature Summary:")
+feature_cols = [col for col in features_df.columns if col not in ['response_length', 'original_index']]
+print(f"   Total features extracted: {len(feature_cols)}")
+print(f"   Feature names: {feature_cols}")
+```
+
+```python
+# Cell 4: Data Preparation and Feature Selection
+print("\n🎯 Preparing data for model training...")
+
+# Define the features to use (based on random sampling analysis)
+SELECTED_FEATURES = [
+    # Core numerical features (above random threshold)
+    'complexity_score',
+    'word_count', 
+    'has_questions',
+    'query_token_length',
+    'char_count',
+    'caps_ratio',
+    'punctuation_density',
+    'avg_word_length',
+    
+    # Category features (above threshold only)
+    'category0', 'category1', 'category2', 'category3', 
+    'category4', 'category5', 'category6',
+    
+    # Encoded categorical features
+    'question_type_encoded',
+    'other_subcategory_encoded', 
+    'query_context_encoded'
+]
+
+# Prepare feature matrix and target
+X = features_df[SELECTED_FEATURES]
+y = features_df['response_length']
+
+print(f"   Features selected: {len(SELECTED_FEATURES)}")
+print(f"   Samples: {len(X):,}")
+print(f"   Target range: {y.min():.0f} - {y.max():.0f} tokens")
+
+# Check for missing values
+missing_counts = X.isnull().sum()
+if missing_counts.sum() > 0:
+    print(f"\n⚠️ Missing values found:")
+    for feature, count in missing_counts[missing_counts > 0].items():
+        print(f"     {feature}: {count}")
+    X = X.fillna(0)
+    print("   ✅ Missing values filled with 0")
+else:
+    print("   ✅ No missing values found")
+
+# Display feature statistics
+print(f"\n📈 Feature Statistics:")
+for feature in SELECTED_FEATURES[:10]:  # Show first 10 for brevity
+    if feature in X.columns:
+        print(f"   {feature:<25} min={X[feature].min():.3f} max={X[feature].max():.3f} mean={X[feature].mean():.3f}")
+```
+
+```python
+# Cell 5: Train-Test Split
+print("\n🔀 Splitting data into train/test sets...")
+
+# Split data with stratification to maintain distribution
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, 
+    test_size=0.2, 
+    random_state=42,
+    shuffle=True
+)
+
+print(f"   Training set: {X_train.shape[0]:,} samples")
+print(f"   Test set: {X_test.shape[0]:,} samples")
+print(f"   Train target mean: {y_train.mean():.1f} ± {y_train.std():.1f}")
+print(f"   Test target mean: {y_test.mean():.1f} ± {y_test.std():.1f}")
+```
+
+```python
+# Cell 6: Train Random Forest Model
+print("\n🌲 Training Random Forest Model...")
+
+# Initialize Random Forest with optimized parameters
+rf_model = RandomForestRegressor(
+    n_estimators=200,           # Good balance of performance vs speed
+    max_depth=15,              # Prevent overfitting
+    min_samples_split=5,       # Minimum samples to split
+    min_samples_leaf=2,        # Minimum samples in leaf
+    max_features='sqrt',       # Feature sampling strategy
+    random_state=42,           # Reproducibility
+    oob_score=True,           # Out-of-bag scoring
+    n_jobs=-1,                # Use all CPU cores
+    verbose=1                 # Show progress
+)
+
+print("🔄 Training Random Forest...")
+print(f"   Parameters: n_estimators={rf_model.n_estimators}, max_depth={rf_model.max_depth}")
+
+# Train the model
+rf_model.fit(X_train, y_train)
+
+print("✅ Training complete!")
+print(f"   OOB Score: {rf_model.oob_score_:.4f}")
+```
+
+```python
+# Cell 7: Model Evaluation
+print("\n📊 Evaluating Model Performance...")
+
+# Make predictions
+y_pred_train = rf_model.predict(X_train)
+y_pred_test = rf_model.predict(X_test)
+
+# Calculate metrics
+train_mae = mean_absolute_error(y_train, y_pred_train)
+test_mae = mean_absolute_error(y_test, y_pred_test)
+train_r2 = r2_score(y_train, y_pred_train)
+test_r2 = r2_score(y_test, y_pred_test)
+train_rmse = np.sqrt(mean_squared_error(y_train, y_pred_train))
+test_rmse = np.sqrt(mean_squared_error(y_test, y_pred_test))
+
+print("=" * 50)
+print("🎯 MODEL PERFORMANCE RESULTS")
+print("=" * 50)
+print(f"Training Set:")
+print(f"   MAE:  {train_mae:.2f} tokens")
+print(f"   RMSE: {train_rmse:.2f} tokens") 
+print(f"   R²:   {train_r2:.4f}")
+print(f"\nTest Set:")
+print(f"   MAE:  {test_mae:.2f} tokens")
+print(f"   RMSE: {test_rmse:.2f} tokens")
+print(f"   R²:   {test_r2:.4f}")
+print(f"\nOut-of-Bag Score: {rf_model.oob_score_:.4f}")
+print("=" * 50)
+
+# Check for overfitting
+overfit_mae = train_mae - test_mae
+overfit_r2 = train_r2 - test_r2
+
+print(f"\n🔍 Overfitting Check:")
+print(f"   MAE difference (train - test): {overfit_mae:.2f}")
+print(f"   R² difference (train - test): {overfit_r2:.4f}")
+
+if abs(overfit_mae) < 2.0 and abs(overfit_r2) < 0.05:
+    print("   ✅ Good generalization - minimal overfitting")
+elif abs(overfit_mae) < 5.0 and abs(overfit_r2) < 0.1:
+    print("   ⚠️ Moderate overfitting - acceptable")
+else:
+    print("   ❌ High overfitting - consider regularization")
+```
+
+```python
+# Cell 8: Feature Importance Analysis
+print("\n📈 FEATURE IMPORTANCE ANALYSIS")
+print("-" * 40)
+
+# Get feature importances
+importances = rf_model.feature_importances_
+feature_names = X.columns
+
+# Create importance DataFrame
+importance_df = pd.DataFrame({
+    'feature': feature_names,
+    'importance': importances
+}).sort_values('importance', ascending=False)
+
+print("Top 15 Most Important Features:")
+for i, (_, row) in enumerate(importance_df.head(15).iterrows()):
+    print(f"{i+1:2d}. {row['feature']:<25} {row['importance']:.6f}")
+
+# Calculate cumulative importance
+importance_df['cumulative_importance'] = importance_df['importance'].cumsum()
+features_for_90_percent = len(importance_df[importance_df['cumulative_importance'] <= 0.9])
+
+print(f"\n📊 Feature Importance Summary:")
+print(f"   Features needed for 90% importance: {features_for_90_percent}")
+print(f"   Total features used: {len(feature_names)}")
+print(f"   Top feature accounts for: {importance_df.iloc[0]['importance']:.1%} of importance")
+```
+
+```python
+# Cell 9: Save the Trained Model
+print("\n💾 Saving trained model and encoders...")
+
+# Create model artifacts directory
+import os
+os.makedirs('model_artifacts', exist_ok=True)
+
+# Save the Random Forest model
+model_path = 'model_artifacts/random_forest_token_predictor.pkl'
+joblib.dump(rf_model, model_path)
+print(f"✅ Model saved to: {model_path}")
+
+# Save the label encoders
+encoders_path = 'model_artifacts/label_encoders.pkl'
+label_encoders = get_label_encoders()
+joblib.dump(label_encoders, encoders_path)
+print(f"✅ Label encoders saved to: {encoders_path}")
+
+# Save feature names for consistency
+features_path = 'model_artifacts/selected_features.pkl'
+joblib.dump(SELECTED_FEATURES, features_path)
+print(f"✅ Feature names saved to: {features_path}")
+
+# Save model metadata
+metadata = {
+    'model_type': 'RandomForestRegressor',
+    'n_estimators': rf_model.n_estimators,
+    'max_depth': rf_model.max_depth,
+    'features_used': SELECTED_FEATURES,
+    'training_samples': len(X_train),
+    'test_samples': len(X_test),
+    'test_mae': test_mae,
+    'test_r2': test_r2,
+    'oob_score': rf_model.oob_score_,
+    'trained_date': pd.Timestamp.now().isoformat()
+}
+
+metadata_path = 'model_artifacts/model_metadata.pkl'
+joblib.dump(metadata, metadata_path)
+print(f"✅ Model metadata saved to: {metadata_path}")
+
+print(f"\n🎉 Model training complete!")
+print(f"   Final Test MAE: {test_mae:.2f} tokens")
+print(f"   Final Test R²: {test_r2:.4f}")
+print(f"   Model ready for production use!")
+```
+
+```python
+# Cell 10: Test Model Loading and Prediction
+print("\n🧪 Testing model loading and prediction...")
+
+# Test loading the saved model
+try:
+    loaded_model = joblib.load(model_path)
+    loaded_encoders = joblib.load(encoders_path)
+    loaded_features = joblib.load(features_path)
+    
+    print("✅ Successfully loaded all model artifacts")
+    
+    # Test prediction with a sample query
+    test_query = "How do I debug Python code that's throwing an error?"
+    
+    # Extract features
+    test_features = extract_optimized_features(test_query)
+    
+    # Prepare feature vector
+    feature_vector = []
+    for feature_name in loaded_features:
+        if feature_name in test_features:
+            feature_vector.append(test_features[feature_name])
+        else:
+            feature_vector.append(0)  # Default value
+    
+    # Make prediction
+    prediction = loaded_model.predict([feature_vector])[0]
+    
+    print(f"\n🔮 Test Prediction:")
+    print(f"   Query: '{test_query}'")
+    print(f"   Predicted tokens: {prediction:.0f}")
+    print(f"   Features extracted: {len(test_features)}")
+    
+    print("\n✅ Model loading and prediction test successful!")
+    
+except Exception as e:
+    print(f"❌ Error during model loading test: {str(e)}")
+
+print("\n🏁 Retraining process complete!")
+```
+
 # Akhil Metukuru's Personal Portfolio
 
 Welcome to my personal portfolio! Here you'll find all my latest work, skills, and experiences. I'm excited to share my journey and achievements with you.
