@@ -1,341 +1,364 @@
-# Model Retraining Notebook - Random Forest with Optimized Features
-# Retrain the Random Forest model using the optimized token_estimator_feature_collection.py
+"""
+token_predictor.py - Production Token Prediction Module
 
-```python
-# Cell 1: Import Libraries
+This module provides the TokenPredictorNode class for predicting response token counts
+using the trained Random Forest model and optimized feature extraction.
+
+Usage:
+    predictor = TokenPredictorNode()
+    predicted_tokens = predictor.predict("How do I debug Python code?")
+"""
+
+import os
+import joblib
 import numpy as np
 import pandas as pd
-import pickle
-import joblib
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-from sklearn.preprocessing import LabelEncoder
-import warnings
-warnings.filterwarnings('ignore')
+from typing import Union, Dict, Any, Optional
+import logging
+from pathlib import Path
 
 # Import our optimized feature extraction
-from token_estimator_feature_collection import extract_optimized_features, get_label_encoders
+from token_estimator_feature_collection import (
+    extract_optimized_features, 
+    get_label_encoders,
+    set_label_encoders,
+    TokenEstimatorFeatureCollection
+)
 
-print("🚀 Starting Random Forest Model Retraining")
-print("Using optimized features from token_estimator_feature_collection.py")
-```
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-```python
-# Cell 2: Load Training Data
-print("📂 Loading training data...")
-
-# Load the original training dataset
-training_df = pd.read_csv('../testing/training_data.csv')
-print(f"✅ Loaded training data: {training_df.shape}")
-print(f"   Columns: {list(training_df.columns)}")
-print(f"   Target range: {training_df['response_length'].min():.0f} - {training_df['response_length'].max():.0f} tokens")
-print(f"   Target mean: {training_df['response_length'].mean():.1f} ± {training_df['response_length'].std():.1f}")
-```
-
-```python
-# Cell 3: Extract Optimized Features
-print("\n🔧 Extracting optimized features for all samples...")
-
-# Extract features using the optimized feature collection
-all_features_list = []
-failed_extractions = 0
-
-for idx, row in training_df.iterrows():
-    try:
-        query = row['Query']
-        response_length = row['response_length']
+class TokenPredictorNode:
+    """
+    Production token predictor using Random Forest model with optimized features.
+    
+    This class handles loading the trained model, extracting features from queries,
+    and predicting response token counts for LLM routing decisions.
+    """
+    
+    def __init__(self, model_path: Optional[str] = None, 
+                 encoders_path: Optional[str] = None,
+                 features_path: Optional[str] = None):
+        """
+        Initialize the TokenPredictorNode.
         
-        # Extract optimized features
-        features = extract_optimized_features(query)
-        features['response_length'] = response_length
-        features['original_index'] = idx
+        Args:
+            model_path: Path to the trained Random Forest model (.pkl file)
+            encoders_path: Path to the label encoders (.pkl file)  
+            features_path: Path to the selected features list (.pkl file)
+        """
         
-        all_features_list.append(features)
+        # Default paths relative to this file
+        default_base_path = Path(__file__).parent / "model_artifacts"
         
-        if idx % 1000 == 0:
-            print(f"   Processed {idx:,} queries...")
+        self.model_path = model_path or str(default_base_path / "random_forest_token_predictor.pkl")
+        self.encoders_path = encoders_path or str(default_base_path / "label_encoders.pkl")
+        self.features_path = features_path or str(default_base_path / "selected_features.pkl")
+        
+        # Initialize components
+        self.model = None
+        self.selected_features = None
+        self.feature_collector = None
+        self.is_loaded = False
+        
+        # Load model components
+        self._load_model()
+    
+    def _load_model(self) -> None:
+        """Load the trained model and associated components."""
+        try:
+            logger.info("🔄 Loading Random Forest token predictor model...")
             
+            # Load the trained Random Forest model
+            if not os.path.exists(self.model_path):
+                raise FileNotFoundError(f"Model file not found: {self.model_path}")
+                
+            self.model = joblib.load(self.model_path)
+            logger.info(f"✅ Loaded model from: {self.model_path}")
+            
+            # Load label encoders
+            if os.path.exists(self.encoders_path):
+                encoders = joblib.load(self.encoders_path)
+                set_label_encoders(encoders)
+                logger.info(f"✅ Loaded encoders from: {self.encoders_path}")
+            else:
+                logger.warning(f"⚠️ Encoders file not found: {self.encoders_path}")
+            
+            # Load selected features
+            if os.path.exists(self.features_path):
+                self.selected_features = joblib.load(self.features_path)
+                logger.info(f"✅ Loaded {len(self.selected_features)} features from: {self.features_path}")
+            else:
+                # Fallback to default features if file not found
+                logger.warning(f"⚠️ Features file not found: {self.features_path}")
+                self._set_default_features()
+            
+            # Initialize feature collector
+            self.feature_collector = TokenEstimatorFeatureCollection()
+            
+            self.is_loaded = True
+            logger.info("✅ TokenPredictorNode initialization complete!")
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to load model: {str(e)}")
+            raise RuntimeError(f"Model loading failed: {str(e)}")
+    
+    def _set_default_features(self) -> None:
+        """Set default features if features file is not found."""
+        self.selected_features = [
+            # Core numerical features
+            'complexity_score', 'word_count', 'has_questions', 'query_token_length',
+            'char_count', 'caps_ratio', 'punctuation_density', 'avg_word_length',
+            
+            # Category features  
+            'category0', 'category1', 'category2', 'category3', 
+            'category4', 'category5', 'category6',
+            
+            # Encoded categorical features
+            'question_type_encoded', 'other_subcategory_encoded', 'query_context_encoded'
+        ]
+        logger.info(f"✅ Using default features: {len(self.selected_features)} features")
+    
+    def _extract_feature_vector(self, query: str) -> np.ndarray:
+        """
+        Extract feature vector from query text.
+        
+        Args:
+            query: Input query text
+            
+        Returns:
+            numpy array of feature values in the correct order
+        """
+        try:
+            # Extract all features using optimized feature collection
+            features_dict = self.feature_collector.extract_optimized_features(query)
+            
+            # Create feature vector in the correct order
+            feature_vector = []
+            for feature_name in self.selected_features:
+                if feature_name in features_dict:
+                    feature_vector.append(features_dict[feature_name])
+                else:
+                    # Use default value for missing features
+                    feature_vector.append(0)
+                    logger.warning(f"⚠️ Missing feature '{feature_name}', using default value 0")
+            
+            return np.array(feature_vector)
+            
+        except Exception as e:
+            logger.error(f"❌ Feature extraction failed for query: '{query[:50]}...' Error: {str(e)}")
+            raise RuntimeError(f"Feature extraction failed: {str(e)}")
+    
+    def _execute(self, input_data: str) -> int:
+        """
+        Execute prediction on input data (main method as specified by Christopher).
+        
+        Args:
+            input_data: Query text to predict tokens for
+            
+        Returns:
+            Integer number of predicted tokens
+        """
+        if not self.is_loaded:
+            raise RuntimeError("Model not loaded. Call _load_model() first.")
+        
+        if not input_data or not isinstance(input_data, str):
+            logger.warning("⚠️ Empty or invalid input_data provided")
+            return 50  # Default fallback value
+        
+        try:
+            # Extract feature vector from input_data using utils functions
+            feature_vector = self._extract_feature_vector(input_data)
+            
+            # Ask the model to predict and return integer
+            prediction = self.model.predict([feature_vector])[0]
+            
+            # Ensure prediction is a positive integer
+            predicted_tokens = max(1, int(round(prediction)))
+            
+            logger.debug(f"🔮 Prediction: '{input_data[:50]}...' → {predicted_tokens} tokens")
+            
+            return predicted_tokens
+            
+        except Exception as e:
+            logger.error(f"❌ Prediction failed for input_data: '{input_data[:50]}...' Error: {str(e)}")
+            # Return reasonable fallback based on query length
+            fallback = max(10, len(input_data.split()) * 3)
+            logger.warning(f"⚠️ Using fallback prediction: {fallback} tokens")
+            return fallback
+    
+    def predict(self, query: str) -> int:
+        """
+        Predict the number of response tokens for a given query.
+        Wrapper around _execute for backward compatibility.
+        
+        Args:
+            query: Input query text
+            
+        Returns:
+            Predicted number of response tokens (integer)
+        """
+        return self._execute(query)
+    
+    def predict_batch(self, queries: list) -> list:
+        """
+        Predict token counts for a batch of queries.
+        
+        Args:
+            queries: List of query strings
+            
+        Returns:
+            List of predicted token counts
+        """
+        if not self.is_loaded:
+            raise RuntimeError("Model not loaded. Call _load_model() first.")
+        
+        predictions = []
+        for query in queries:
+            try:
+                prediction = self.predict(query)
+                predictions.append(prediction)
+            except Exception as e:
+                logger.error(f"❌ Batch prediction failed for query: '{query[:50]}...'")
+                predictions.append(50)  # Fallback value
+        
+        logger.info(f"✅ Batch prediction complete: {len(predictions)} queries processed")
+        return predictions
+    
+    def get_feature_importance(self) -> Dict[str, float]:
+        """
+        Get feature importance scores from the trained model.
+        
+        Returns:
+            Dictionary mapping feature names to importance scores
+        """
+        if not self.is_loaded:
+            raise RuntimeError("Model not loaded.")
+        
+        if not hasattr(self.model, 'feature_importances_'):
+            raise RuntimeError("Model does not support feature importance.")
+        
+        importance_dict = {}
+        for feature, importance in zip(self.selected_features, self.model.feature_importances_):
+            importance_dict[feature] = float(importance)
+        
+        return importance_dict
+    
+    def get_model_info(self) -> Dict[str, Any]:
+        """
+        Get information about the loaded model.
+        
+        Returns:
+            Dictionary with model information
+        """
+        if not self.is_loaded:
+            return {"status": "not_loaded"}
+        
+        info = {
+            "status": "loaded",
+            "model_type": type(self.model).__name__,
+            "n_features": len(self.selected_features),
+            "features": self.selected_features,
+            "model_path": self.model_path,
+            "encoders_path": self.encoders_path
+        }
+        
+        # Add model-specific info
+        if hasattr(self.model, 'n_estimators'):
+            info["n_estimators"] = self.model.n_estimators
+        if hasattr(self.model, 'max_depth'):
+            info["max_depth"] = self.model.max_depth
+        if hasattr(self.model, 'oob_score_'):
+            info["oob_score"] = self.model.oob_score_
+            
+        return info
+    
+    def reload_model(self) -> None:
+        """Reload the model from disk."""
+        logger.info("🔄 Reloading model...")
+        self.is_loaded = False
+        self._load_model()
+
+
+# Convenience functions for direct usage
+_global_predictor = None
+
+def get_predictor() -> TokenPredictorNode:
+    """Get or create the global token predictor instance."""
+    global _global_predictor
+    if _global_predictor is None:
+        _global_predictor = TokenPredictorNode()
+    return _global_predictor
+
+def predict_tokens(query: str) -> int:
+    """
+    Convenience function to predict tokens for a single query.
+    
+    Args:
+        query: Input query text
+        
+    Returns:
+        Predicted number of response tokens
+    """
+    predictor = get_predictor()
+    return predictor.predict(query)
+
+def predict_tokens_batch(queries: list) -> list:
+    """
+    Convenience function to predict tokens for multiple queries.
+    
+    Args:
+        queries: List of query strings
+        
+    Returns:
+        List of predicted token counts
+    """
+    predictor = get_predictor()
+    return predictor.predict_batch(queries)
+
+
+# Example usage and testing
+if __name__ == "__main__":
+    # Test the token predictor
+    print("🧪 Testing TokenPredictorNode...")
+    
+    try:
+        # Initialize predictor
+        predictor = TokenPredictorNode()
+        
+        # Test queries
+        test_queries = [
+            "What is Python?",
+            "How do I debug Python code that's throwing an error?",
+            "Write a function to sort a list of numbers in ascending order.",
+            "Explain the concept of machine learning in simple terms.",
+            "What are the main differences between SQL and NoSQL databases?"
+        ]
+        
+        print(f"\n🔮 Testing predictions:")
+        for query in test_queries:
+            tokens = predictor.predict(query)
+            print(f"   '{query[:50]}...' → {tokens} tokens")
+        
+        # Test batch prediction
+        batch_predictions = predictor.predict_batch(test_queries)
+        print(f"\n📊 Batch prediction: {batch_predictions}")
+        
+        # Show model info
+        model_info = predictor.get_model_info()
+        print(f"\n📋 Model Info:")
+        print(f"   Status: {model_info['status']}")
+        print(f"   Model Type: {model_info['model_type']}")
+        print(f"   Features: {model_info['n_features']}")
+        
+        print("\n✅ TokenPredictorNode test complete!")
+        
     except Exception as e:
-        print(f"   ⚠️ Failed to extract features for query {idx}: {str(e)}")
-        failed_extractions += 1
-        continue
+        print(f"❌ Test failed: {str(e)}")
+        print("🔧 Make sure you've trained the model using the retraining notebook first!")
 
-# Convert to DataFrame
-features_df = pd.DataFrame(all_features_list)
-print(f"✅ Feature extraction complete: {features_df.shape}")
-print(f"   Successful extractions: {len(all_features_list):,}")
-print(f"   Failed extractions: {failed_extractions}")
-
-# Display feature summary
-print(f"\n📊 Feature Summary:")
-feature_cols = [col for col in features_df.columns if col not in ['response_length', 'original_index']]
-print(f"   Total features extracted: {len(feature_cols)}")
-print(f"   Feature names: {feature_cols}")
-```
-
-```python
-# Cell 4: Data Preparation and Feature Selection
-print("\n🎯 Preparing data for model training...")
-
-# Define the features to use (based on random sampling analysis)
-SELECTED_FEATURES = [
-    # Core numerical features (above random threshold)
-    'complexity_score',
-    'word_count', 
-    'has_questions',
-    'query_token_length',
-    'char_count',
-    'caps_ratio',
-    'punctuation_density',
-    'avg_word_length',
-    
-    # Category features (above threshold only)
-    'category0', 'category1', 'category2', 'category3', 
-    'category4', 'category5', 'category6',
-    
-    # Encoded categorical features
-    'question_type_encoded',
-    'other_subcategory_encoded', 
-    'query_context_encoded'
-]
-
-# Prepare feature matrix and target
-X = features_df[SELECTED_FEATURES]
-y = features_df['response_length']
-
-print(f"   Features selected: {len(SELECTED_FEATURES)}")
-print(f"   Samples: {len(X):,}")
-print(f"   Target range: {y.min():.0f} - {y.max():.0f} tokens")
-
-# Check for missing values
-missing_counts = X.isnull().sum()
-if missing_counts.sum() > 0:
-    print(f"\n⚠️ Missing values found:")
-    for feature, count in missing_counts[missing_counts > 0].items():
-        print(f"     {feature}: {count}")
-    X = X.fillna(0)
-    print("   ✅ Missing values filled with 0")
-else:
-    print("   ✅ No missing values found")
-
-# Display feature statistics
-print(f"\n📈 Feature Statistics:")
-for feature in SELECTED_FEATURES[:10]:  # Show first 10 for brevity
-    if feature in X.columns:
-        print(f"   {feature:<25} min={X[feature].min():.3f} max={X[feature].max():.3f} mean={X[feature].mean():.3f}")
-```
-
-```python
-# Cell 5: Train-Test Split
-print("\n🔀 Splitting data into train/test sets...")
-
-# Split data with stratification to maintain distribution
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, 
-    test_size=0.2, 
-    random_state=42,
-    shuffle=True
-)
-
-print(f"   Training set: {X_train.shape[0]:,} samples")
-print(f"   Test set: {X_test.shape[0]:,} samples")
-print(f"   Train target mean: {y_train.mean():.1f} ± {y_train.std():.1f}")
-print(f"   Test target mean: {y_test.mean():.1f} ± {y_test.std():.1f}")
-```
-
-```python
-# Cell 6: Train Random Forest Model
-print("\n🌲 Training Random Forest Model...")
-
-# Initialize Random Forest with optimized parameters
-rf_model = RandomForestRegressor(
-    n_estimators=200,           # Good balance of performance vs speed
-    max_depth=15,              # Prevent overfitting
-    min_samples_split=5,       # Minimum samples to split
-    min_samples_leaf=2,        # Minimum samples in leaf
-    max_features='sqrt',       # Feature sampling strategy
-    random_state=42,           # Reproducibility
-    oob_score=True,           # Out-of-bag scoring
-    n_jobs=-1,                # Use all CPU cores
-    verbose=1                 # Show progress
-)
-
-print("🔄 Training Random Forest...")
-print(f"   Parameters: n_estimators={rf_model.n_estimators}, max_depth={rf_model.max_depth}")
-
-# Train the model
-rf_model.fit(X_train, y_train)
-
-print("✅ Training complete!")
-print(f"   OOB Score: {rf_model.oob_score_:.4f}")
-```
-
-```python
-# Cell 7: Model Evaluation
-print("\n📊 Evaluating Model Performance...")
-
-# Make predictions
-y_pred_train = rf_model.predict(X_train)
-y_pred_test = rf_model.predict(X_test)
-
-# Calculate metrics
-train_mae = mean_absolute_error(y_train, y_pred_train)
-test_mae = mean_absolute_error(y_test, y_pred_test)
-train_r2 = r2_score(y_train, y_pred_train)
-test_r2 = r2_score(y_test, y_pred_test)
-train_rmse = np.sqrt(mean_squared_error(y_train, y_pred_train))
-test_rmse = np.sqrt(mean_squared_error(y_test, y_pred_test))
-
-print("=" * 50)
-print("🎯 MODEL PERFORMANCE RESULTS")
-print("=" * 50)
-print(f"Training Set:")
-print(f"   MAE:  {train_mae:.2f} tokens")
-print(f"   RMSE: {train_rmse:.2f} tokens") 
-print(f"   R²:   {train_r2:.4f}")
-print(f"\nTest Set:")
-print(f"   MAE:  {test_mae:.2f} tokens")
-print(f"   RMSE: {test_rmse:.2f} tokens")
-print(f"   R²:   {test_r2:.4f}")
-print(f"\nOut-of-Bag Score: {rf_model.oob_score_:.4f}")
-print("=" * 50)
-
-# Check for overfitting
-overfit_mae = train_mae - test_mae
-overfit_r2 = train_r2 - test_r2
-
-print(f"\n🔍 Overfitting Check:")
-print(f"   MAE difference (train - test): {overfit_mae:.2f}")
-print(f"   R² difference (train - test): {overfit_r2:.4f}")
-
-if abs(overfit_mae) < 2.0 and abs(overfit_r2) < 0.05:
-    print("   ✅ Good generalization - minimal overfitting")
-elif abs(overfit_mae) < 5.0 and abs(overfit_r2) < 0.1:
-    print("   ⚠️ Moderate overfitting - acceptable")
-else:
-    print("   ❌ High overfitting - consider regularization")
-```
-
-```python
-# Cell 8: Feature Importance Analysis
-print("\n📈 FEATURE IMPORTANCE ANALYSIS")
-print("-" * 40)
-
-# Get feature importances
-importances = rf_model.feature_importances_
-feature_names = X.columns
-
-# Create importance DataFrame
-importance_df = pd.DataFrame({
-    'feature': feature_names,
-    'importance': importances
-}).sort_values('importance', ascending=False)
-
-print("Top 15 Most Important Features:")
-for i, (_, row) in enumerate(importance_df.head(15).iterrows()):
-    print(f"{i+1:2d}. {row['feature']:<25} {row['importance']:.6f}")
-
-# Calculate cumulative importance
-importance_df['cumulative_importance'] = importance_df['importance'].cumsum()
-features_for_90_percent = len(importance_df[importance_df['cumulative_importance'] <= 0.9])
-
-print(f"\n📊 Feature Importance Summary:")
-print(f"   Features needed for 90% importance: {features_for_90_percent}")
-print(f"   Total features used: {len(feature_names)}")
-print(f"   Top feature accounts for: {importance_df.iloc[0]['importance']:.1%} of importance")
-```
-
-```python
-# Cell 9: Save the Trained Model
-print("\n💾 Saving trained model and encoders...")
-
-# Create model artifacts directory
-import os
-os.makedirs('model_artifacts', exist_ok=True)
-
-# Save the Random Forest model
-model_path = 'model_artifacts/random_forest_token_predictor.pkl'
-joblib.dump(rf_model, model_path)
-print(f"✅ Model saved to: {model_path}")
-
-# Save the label encoders
-encoders_path = 'model_artifacts/label_encoders.pkl'
-label_encoders = get_label_encoders()
-joblib.dump(label_encoders, encoders_path)
-print(f"✅ Label encoders saved to: {encoders_path}")
-
-# Save feature names for consistency
-features_path = 'model_artifacts/selected_features.pkl'
-joblib.dump(SELECTED_FEATURES, features_path)
-print(f"✅ Feature names saved to: {features_path}")
-
-# Save model metadata
-metadata = {
-    'model_type': 'RandomForestRegressor',
-    'n_estimators': rf_model.n_estimators,
-    'max_depth': rf_model.max_depth,
-    'features_used': SELECTED_FEATURES,
-    'training_samples': len(X_train),
-    'test_samples': len(X_test),
-    'test_mae': test_mae,
-    'test_r2': test_r2,
-    'oob_score': rf_model.oob_score_,
-    'trained_date': pd.Timestamp.now().isoformat()
-}
-
-metadata_path = 'model_artifacts/model_metadata.pkl'
-joblib.dump(metadata, metadata_path)
-print(f"✅ Model metadata saved to: {metadata_path}")
-
-print(f"\n🎉 Model training complete!")
-print(f"   Final Test MAE: {test_mae:.2f} tokens")
-print(f"   Final Test R²: {test_r2:.4f}")
-print(f"   Model ready for production use!")
-```
-
-```python
-# Cell 10: Test Model Loading and Prediction
-print("\n🧪 Testing model loading and prediction...")
-
-# Test loading the saved model
-try:
-    loaded_model = joblib.load(model_path)
-    loaded_encoders = joblib.load(encoders_path)
-    loaded_features = joblib.load(features_path)
-    
-    print("✅ Successfully loaded all model artifacts")
-    
-    # Test prediction with a sample query
-    test_query = "How do I debug Python code that's throwing an error?"
-    
-    # Extract features
-    test_features = extract_optimized_features(test_query)
-    
-    # Prepare feature vector
-    feature_vector = []
-    for feature_name in loaded_features:
-        if feature_name in test_features:
-            feature_vector.append(test_features[feature_name])
-        else:
-            feature_vector.append(0)  # Default value
-    
-    # Make prediction
-    prediction = loaded_model.predict([feature_vector])[0]
-    
-    print(f"\n🔮 Test Prediction:")
-    print(f"   Query: '{test_query}'")
-    print(f"   Predicted tokens: {prediction:.0f}")
-    print(f"   Features extracted: {len(test_features)}")
-    
-    print("\n✅ Model loading and prediction test successful!")
-    
-except Exception as e:
-    print(f"❌ Error during model loading test: {str(e)}")
-
-print("\n🏁 Retraining process complete!")
-```
-
+        
 # Akhil Metukuru's Personal Portfolio
 
 Welcome to my personal portfolio! Here you'll find all my latest work, skills, and experiences. I'm excited to share my journey and achievements with you.
