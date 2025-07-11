@@ -1,22 +1,45 @@
 ```
 
-# In a Jupyter cell - create zip file for download
-import zipfile
-import os
-
-# Zip all the files
-with zipfile.ZipFile('token_predictor_files.zip', 'w') as zipf:
-    # Add model artifacts
-    for file in os.listdir('model_artifacts/'):
-        zipf.write(f'model_artifacts/{file}', f'model_artifacts/{file}')
+# Example usage and testing
+if __name__ == "__main__":
+    # Test the token predictor
+    print("🧪 Testing TokenPredictorNode...")
     
-    # Add Python files  
-    zipf.write('token_predictor.py')
-    zipf.write('token_estimator_feature_collection.py')
-
-print("✅ Created token_predictor_files.zip - download it from Jupyter file browser")
-```
+    try:
+        # Initialize predictor
+        predictor = TokenPredictorNode()
         
+        # Test queries
+        test_queries = [
+            "What is Python?",
+            "How do I debug Python code that's throwing an error?",
+            "Write a function to sort a list of numbers in ascending order.",
+            "Explain the concept of machine learning in simple terms.",
+            "What are the main differences between SQL and NoSQL databases?"
+        ]
+        
+        print(f"\n🔮 Testing predictions:")
+        for query in test_queries:
+            tokens = predictor.predict(query)
+            print(f"   '{query[:50]}...' → {tokens} tokens")
+        
+        # Test batch prediction
+        batch_predictions = predictor.predict_batch(test_queries)
+        print(f"\n📊 Batch prediction: {batch_predictions}")
+        
+        # Show model info
+        model_info = predictor.get_model_info()
+        print(f"\n📋 Model Info:")
+        print(f"   Status: {model_info['status']}")
+        print(f"   Model Type: {model_info['model_type']}")
+        print(f"   Features: {model_info['n_features']}")
+        
+        print("\n✅ TokenPredictorNode test complete!")
+        
+    except Exception as e:
+        print(f"❌ Test failed: {str(e)}")
+        print("🔧 Make sure you've trained the model using the retraining notebook first!")
+```
 # Akhil Metukuru's Personal Portfolio
 
 Welcome to my personal portfolio! Here you'll find all my latest work, skills, and experiences. I'm excited to share my journey and achievements with you.
