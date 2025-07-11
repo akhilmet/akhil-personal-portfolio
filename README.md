@@ -1,45 +1,26 @@
-```
+Why get_label_encoders() and set_label_encoders()?
+get_label_encoders():
 
-# Example usage and testing
-if __name__ == "__main__":
-    # Test the token predictor
-    print("🧪 Testing TokenPredictorNode...")
-    
-    try:
-        # Initialize predictor
-        predictor = TokenPredictorNode()
-        
-        # Test queries
-        test_queries = [
-            "What is Python?",
-            "How do I debug Python code that's throwing an error?",
-            "Write a function to sort a list of numbers in ascending order.",
-            "Explain the concept of machine learning in simple terms.",
-            "What are the main differences between SQL and NoSQL databases?"
-        ]
-        
-        print(f"\n🔮 Testing predictions:")
-        for query in test_queries:
-            tokens = predictor.predict(query)
-            print(f"   '{query[:50]}...' → {tokens} tokens")
-        
-        # Test batch prediction
-        batch_predictions = predictor.predict_batch(test_queries)
-        print(f"\n📊 Batch prediction: {batch_predictions}")
-        
-        # Show model info
-        model_info = predictor.get_model_info()
-        print(f"\n📋 Model Info:")
-        print(f"   Status: {model_info['status']}")
-        print(f"   Model Type: {model_info['model_type']}")
-        print(f"   Features: {model_info['n_features']}")
-        
-        print("\n✅ TokenPredictorNode test complete!")
-        
-    except Exception as e:
-        print(f"❌ Test failed: {str(e)}")
-        print("🔧 Make sure you've trained the model using the retraining notebook first!")
-```
+Returns the current encoder mappings
+Used for: Saving encoders to disk during training
+Example: encoders = get_label_encoders() → saves the mappings
+
+set_label_encoders(encoders):
+
+Sets the encoder mappings from a saved state
+Used for: Loading encoders when loading a trained model
+Example: set_label_encoders(saved_encoders) → restores the mappings
+
+Why This Matters:
+python# During Training:
+question_type = "how"  
+encoded = encoder.transform(["how"])  # Returns [0]
+
+# During Production (months later):
+question_type = "how"
+encoded = encoder.transform(["how"])  # MUST return [0] again!
+If the encodings change, the model gets confused
+
 # Akhil Metukuru's Personal Portfolio
 
 Welcome to my personal portfolio! Here you'll find all my latest work, skills, and experiences. I'm excited to share my journey and achievements with you.
