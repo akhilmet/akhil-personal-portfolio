@@ -1,30 +1,456 @@
-Why get_label_encoders() and set_label_encoders()?
-get_label_encoders():
+```
+"""
+Latency Predictor for Query Router
 
-Returns the current encoder mappings
-Used for: Saving encoders to disk during training
-Example: encoders = get_label_encoders() → saves the mappings
+Hardware-based latency prediction for intelligent LLM routing using the
+trained token predictor model and Mistral tokenizer for accurate estimates.
 
-set_label_encoders(encoders):
+This module provides latency estimation based on GPU memory bandwidth,
+model specifications, and predicted response token counts to enable optimal
+model selection in the query router.
+"""
 
-Sets the encoder mappings from a saved state
-Used for: Loading encoders when loading a trained model
-Example: set_label_encoders(saved_encoders) → restores the mappings
+import re
+import time
+from typing import List, Dict, Optional, Tuple
+from dataclasses import dataclass
 
-Why This Matters:
-python# During Training:
-question_type = "how"  
-encoded = encoder.transform(["how"])  # Returns [0]
+# Import the trained token predictor
+try:
+    from token_predictor import TokenPredictorNode, predict_tokens
+    TOKEN_PREDICTOR_AVAILABLE = True
+except ImportError:
+    print("⚠️ Token predictor not available, using fallback estimation")
+    TOKEN_PREDICTOR_AVAILABLE = False
 
-# During Production (months later):
-question_type = "how"
-encoded = encoder.transform(["how"])  # MUST return [0] again!
-If the encodings change, the model gets confused
+# Import Mistral tokenizer for accurate token counting
+try:
+    from mistral_common.tokens.tokenizers.mistral import MistralTokenizer
+    MISTRAL_AVAILABLE = True
+    tokenizer = MistralTokenizer.v3()
+except ImportError:
+    print("⚠️ Mistral tokenizer not available, using approximation")
+    MISTRAL_AVAILABLE = False
+    tokenizer = None
 
-# Akhil Metukuru's Personal Portfolio
 
-Welcome to my personal portfolio! Here you'll find all my latest work, skills, and experiences. I'm excited to share my journey and achievements with you.
+@dataclass
+class ModelSpec:
+    """Model specification for latency calculations."""
+    name: str
+    size_gb: float
+    shards: int
+    client_model_name: str
 
+
+class LatencyPredictor:
+    """
+    Hardware-based latency predictor for LLM routing decisions.
+    
+    Predicts Time-to-First-Token (TTFT) and full completion latency
+    based on model size, GPU memory bandwidth, and accurate token counts
+    using the trained token predictor model.
+    """
+    
+    # Default model configurations for Capital One AI Sandbox
+    DEFAULT_MODELS = [
+        ModelSpec("llama-3.1-8b", size_gb=16, shards=1, client_model_name="llama-3.1-8b"),
+        ModelSpec("llama-3.3-70b", size_gb=140, shards=8, client_model_name="llama-3.3-70b"),
+        ModelSpec("mixtral-8x7b", size_gb=87, shards=4, client_model_name="mixtral-8x7b"),
+    ]
+    
+    def __init__(self, models: Optional[List[ModelSpec]] = None, bandwidth_gbps: float = 600.0):
+        """
+        Initialize the latency predictor.
+        
+        Args:
+            models: List of ModelSpec objects. Uses defaults if None.
+            bandwidth_gbps: GPU memory bandwidth in GB/s (default: 600.0)
+        """
+        self.models = models or self.DEFAULT_MODELS
+        self.bandwidth_gbps = bandwidth_gbps
+        self._model_lookup = {model.name: model for model in self.models}
+        
+        # Initialize token predictor
+        self.token_predictor = None
+        if TOKEN_PREDICTOR_AVAILABLE:
+            try:
+                self.token_predictor = TokenPredictorNode()
+                print("✅ Token predictor loaded successfully")
+            except Exception as e:
+                print(f"⚠️ Failed to load token predictor: {e}")
+        
+    def estimate_input_tokens(self, text: str) -> int:
+        """
+        Estimate token count for input text using Mistral tokenizer.
+        
+        Uses accurate Mistral tokenization when available, falls back to
+        Llama approximation patterns:
+        - ~1.3 tokens per word for English
+        - Additional tokens for punctuation and special characters
+        
+        Args:
+            text: Input text to tokenize
+            
+        Returns:
+            Estimated input token count
+        """
+        if not text or not text.strip():
+            return 1
+            
+        # Use Mistral tokenizer if available (most accurate)
+        if MISTRAL_AVAILABLE and tokenizer:
+            try:
+                tokens = tokenizer.encode(text)
+                return len(tokens)
+            except Exception as e:
+                print(f"⚠️ Mistral tokenization failed: {e}")
+        
+        # Fallback to approximation
+        words = text.split()
+        
+        # Base token count (Llama averages ~1.3 tokens per word)
+        base_tokens = len(words) * 1.3
+        
+        # Additional tokens for various other elements
+        punct_tokens = len(re.findall(r'[.,!?;:()\[\]"\']', text)) * 0.5
+        number_tokens = len(re.findall(r'\d+', text)) * 0.7
+        special_tokens = len(re.findall(r'[@#$%^&*+=<>~/\\|]', text)) * 0.3
+        
+        total_tokens = base_tokens + punct_tokens + number_tokens + special_tokens
+        return max(1, int(total_tokens))
+    
+    def estimate_output_tokens(self, text: str) -> int:
+        """
+        Estimate expected output token count using the trained token predictor.
+        
+        Uses the Random Forest model trained on query-response patterns
+        to predict response length with high accuracy (~13.75 MAE).
+        
+        Args:
+            text: Input prompt text
+            
+        Returns:
+            Predicted output token count
+        """
+        if not text or not text.strip():
+            return 50  # Default fallback
+        
+        # Use trained token predictor if available
+        if TOKEN_PREDICTOR_AVAILABLE and self.token_predictor:
+            try:
+                predicted_tokens = self.token_predictor._execute(text)
+                return max(1, predicted_tokens)
+            except Exception as e:
+                print(f"⚠️ Token prediction failed: {e}")
+        
+        # Fallback to heuristic-based estimation
+        input_tokens = self.estimate_input_tokens(text)
+        text_lower = text.lower()
+        
+        # Base multiplier based on input length
+        base_multiplier = 2.0
+        
+        # Adjust based on query type
+        if any(keyword in text_lower for keyword in ['explain', 'describe', 'tell me about']):
+            base_multiplier = 3.5  # Explanations tend to be longer
+        elif any(keyword in text_lower for keyword in ['code', 'function', 'implement']):
+            base_multiplier = 4.0  # Code responses are typically longer
+        elif any(keyword in text_lower for keyword in ['list', 'steps', 'how to']):
+            base_multiplier = 3.0  # Structured responses
+        elif text.strip().endswith('?') and len(text.split()) < 10:
+            base_multiplier = 1.5  # Short questions
+        elif any(keyword in text_lower for keyword in ['summary', 'summarize', 'brief']):
+            base_multiplier = 1.2  # Summaries are shorter
+        
+        estimated_output = int(input_tokens * base_multiplier)
+        return max(10, estimated_output)
+    
+    def estimate_ttft(self, prompt_tokens: int, model_name: str) -> float:
+        """
+        Estimate Time-to-First-Token (TTFT) in milliseconds.
+        
+        TTFT = Prefill latency + First token decode latency
+        Based on GPU memory bandwidth bottleneck model.
+        
+        Args:
+            prompt_tokens: Number of tokens in the prompt
+            model_name: Name of the model to use
+            
+        Returns:
+            Estimated TTFT in milliseconds
+            
+        Raises:
+            ValueError: If model_name is not found
+        """
+        model = self._get_model(model_name)
+        
+        # Effective bandwidth scales with GPU shards
+        effective_bandwidth = self.bandwidth_gbps * model.shards
+        
+        # Base per-token latency (ms) - accounts for memory access patterns
+        base_latency_ms = (model.size_gb / effective_bandwidth) * 1000.0
+        
+        # Prefill cost (process entire prompt)
+        prefill_cost = prompt_tokens * base_latency_ms
+        
+        # First token decode cost (single token generation)
+        decode_cost = base_latency_ms
+        
+        return prefill_cost + decode_cost
+    
+    def estimate_full_latency(
+        self,
+        prompt_tokens: int,
+        expected_output_tokens: int,
+        model_name: str
+    ) -> float:
+        """
+        Estimate end-to-end completion latency in milliseconds.
+        
+        Full latency = Prefill latency + (Output tokens × Decode latency)
+        
+        Args:
+            prompt_tokens: Number of tokens in the prompt
+            expected_output_tokens: Expected number of output tokens
+            model_name: Name of the model to use
+            
+        Returns:
+            Estimated full completion latency in milliseconds
+            
+        Raises:
+            ValueError: If model_name is not found
+        """
+        model = self._get_model(model_name)
+        
+        # Effective bandwidth scales with GPU shards
+        effective_bandwidth = self.bandwidth_gbps * model.shards
+        base_latency_ms = (model.size_gb / effective_bandwidth) * 1000.0
+        
+        # Prefill phase (process entire prompt once)
+        prefill_cost = prompt_tokens * base_latency_ms
+        
+        # Decode phase (generate each output token sequentially)
+        decode_cost = expected_output_tokens * base_latency_ms
+        
+        return prefill_cost + decode_cost
+    
+    def predict_latencies(
+        self, 
+        prompt: str, 
+        expected_output_tokens: int = None
+    ) -> Dict[str, Dict[str, float]]:
+        """
+        Predict latencies for all available models using trained token predictor.
+        
+        Args:
+            prompt: Input prompt text
+            expected_output_tokens: Expected number of output tokens.
+                                  If None, uses token predictor estimation.
+                                  
+        Returns:
+            Dictionary mapping model names to latency predictions:
+            {
+                "model_name": {
+                    "ttft_ms": float,
+                    "full_latency_ms": float,
+                    "prompt_tokens": int,
+                    "expected_output_tokens": int,
+                    "model_size_gb": float,
+                    "model_shards": int
+                }
+            }
+        """
+        # Get accurate token counts
+        prompt_tokens = self.estimate_input_tokens(prompt)
+        
+        if expected_output_tokens is None:
+            expected_output_tokens = self.estimate_output_tokens(prompt)
+        
+        results = {}
+        
+        for model in self.models:
+            ttft = self.estimate_ttft(prompt_tokens, model.name)
+            full_latency = self.estimate_full_latency(
+                prompt_tokens, expected_output_tokens, model.name
+            )
+            
+            results[model.name] = {
+                "ttft_ms": round(ttft, 2),
+                "full_latency_ms": round(full_latency, 2),
+                "prompt_tokens": prompt_tokens,
+                "expected_output_tokens": expected_output_tokens,
+                "model_size_gb": model.size_gb,
+                "model_shards": model.shards
+            }
+        
+        return results
+    
+    def recommend_models_for_budget(
+        self, 
+        prompt: str, 
+        max_ttft_ms: float
+    ) -> List[Dict[str, any]]:
+        """
+        Recommend models that meet a TTFT budget requirement.
+        
+        Args:
+            prompt: Input prompt text
+            max_ttft_ms: Maximum acceptable TTFT in milliseconds
+            
+        Returns:
+            List of model recommendations sorted by TTFT (fastest first):
+            [
+                {
+                    "model_name": str,
+                    "client_model_name": str,
+                    "ttft_ms": float,
+                    "prompt_tokens": int
+                }
+            ]
+        """
+        prompt_tokens = self.estimate_input_tokens(prompt)
+        candidates = []
+        
+        for model in self.models:
+            ttft = self.estimate_ttft(prompt_tokens, model.name)
+            
+            if ttft <= max_ttft_ms:
+                candidates.append({
+                    "model_name": model.name,
+                    "client_model_name": model.client_model_name,
+                    "ttft_ms": round(ttft, 2),
+                    "prompt_tokens": prompt_tokens,
+                    "model_size_gb": model.size_gb,
+                    "model_shards": model.shards
+                })
+        
+        # Sort by TTFT (fastest first)
+        return sorted(candidates, key=lambda x: x["ttft_ms"])
+    
+    def get_fastest_model(self, prompt: str) -> Dict[str, any]:
+        """
+        Get the fastest model for a given prompt based on TTFT.
+        
+        Args:
+            prompt: Input prompt text
+            
+        Returns:
+            Dictionary with fastest model information including predictions
+        """
+        predictions = self.predict_latencies(prompt)
+        fastest_model = min(predictions.items(), key=lambda x: x[1]["ttft_ms"])
+        
+        model_obj = self._get_model(fastest_model[0])
+        
+        return {
+            "model_name": fastest_model[0],
+            "client_model_name": model_obj.client_model_name,
+            **fastest_model[1]
+        }
+    
+    def _get_model(self, model_name: str) -> ModelSpec:
+        """
+        Get model specification by name.
+        
+        Args:
+            model_name: Name of the model
+            
+        Returns:
+            ModelSpec object
+            
+        Raises:
+            ValueError: If model not found
+        """
+        if model_name not in self._model_lookup:
+            available_models = list(self._model_lookup.keys())
+            raise ValueError(f"Model '{model_name}' not found. Available models: {available_models}")
+        return self._model_lookup[model_name]
+    
+    def get_available_models(self) -> List[str]:
+        """
+        Get list of available model names.
+        
+        Returns:
+            List of model names
+        """
+        return [model.name for model in self.models]
+
+
+# Convenience function for quick predictions
+def predict_latency(
+    prompt: str, 
+    model_name: str, 
+    expected_output_tokens: int = None
+) -> Dict[str, float]:
+    """
+    Quick latency prediction for a single model using trained token predictor.
+    
+    Args:
+        prompt: Input prompt text
+        model_name: Name of the model
+        expected_output_tokens: Expected output tokens (uses predictor if None)
+        
+    Returns:
+        Dictionary with latency predictions
+    """
+    predictor = LatencyPredictor()
+    predictions = predictor.predict_latencies(prompt, expected_output_tokens)
+    
+    if model_name not in predictions:
+        available_models = list(predictions.keys())
+        raise ValueError(f"Model '{model_name}' not found. Available models: {available_models}")
+    
+    return predictions[model_name]
+
+
+# Example usage and testing
+if __name__ == "__main__":
+    print("🧪 Testing LatencyPredictor with Token Predictor Integration...")
+    
+    try:
+        # Initialize predictor
+        predictor = LatencyPredictor()
+        
+        # Test queries with different complexity levels
+        test_queries = [
+            "What is Python?",
+            "How do I debug Python code that's throwing an error?",
+            "Write a function to sort a list of numbers in ascending order and explain the algorithm.",
+            "Explain the concept of machine learning, deep learning, and neural networks in detail.",
+            "Compare the performance characteristics of different sorting algorithms."
+        ]
+        
+        print(f"\n🔮 Testing latency predictions:")
+        for i, query in enumerate(test_queries, 1):
+            print(f"\n--- Query {i}: '{query[:60]}...' ---")
+            
+            # Get predictions for all models
+            predictions = predictor.predict_latencies(query)
+            
+            for model_name, pred in predictions.items():
+                print(f"  {model_name:15} | "
+                      f"TTFT: {pred['ttft_ms']:6.1f}ms | "
+                      f"Full: {pred['full_latency_ms']:6.1f}ms | "
+                      f"Tokens: {pred['prompt_tokens']}→{pred['expected_output_tokens']}")
+            
+            # Get fastest model recommendation
+            fastest = predictor.get_fastest_model(query)
+            print(f"  🏆 Fastest: {fastest['model_name']} ({fastest['ttft_ms']:.1f}ms)")
+        
+        # Test budget-based recommendations
+        print(f"\n💰 Models under 100ms TTFT budget:")
+        budget_recs = predictor.recommend_models_for_budget(test_queries[0], 100.0)
+        for rec in budget_recs:
+            print(f"  {rec['model_name']:15} | TTFT: {rec['ttft_ms']:6.1f}ms")
+        
+        print(f"\n📋 Available models: {predictor.get_available_models()}")
+        print("\n✅ LatencyPredictor test complete!")
+        
+    except Exception as e:
+        print(f"❌ Test failed: {str(e)}")
+        print("🔧 Make sure token_predictor.py and model artifacts are available!")
+```
 ## About Me
 
 Hello! I'm Akhil Metukuru, passionate about leveraging technology to solve real-world problems and create impactful solutions. When I'm not coding or working on new projects, you might find me exploring new places, reading, or spending time with family and friends.
