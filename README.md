@@ -19,6 +19,9 @@ import time
 from typing import List, Dict, Optional, Tuple
 from dataclasses import dataclass
 
+# Import the ensemble graph node base class
+from ..ensemble_graph.ensemble_graph_node import EnsembleGraphNode
+
 # Import the trained token predictor
 try:
     from token_predictor import TokenPredictorNode, predict_tokens
@@ -30,6 +33,8 @@ except ImportError:
 # Import Mistral tokenizer for accurate token counting
 try:
     from mistral_common.tokens.tokenizers.mistral import MistralTokenizer
+    from mistral_common.protocol.instruct.messages import UserMessage
+    from mistral_common.protocol.instruct.request import ChatCompletionRequest
     MISTRAL_AVAILABLE = True
     tokenizer = MistralTokenizer.v3()
 except ImportError:
@@ -83,6 +88,28 @@ class LatencyPredictor:
                 print("✅ Token predictor loaded successfully")
             except Exception as e:
                 print(f"⚠️ Failed to load token predictor: {e}")
+    
+    def _execute(self, input_data):
+        """
+        Execute latency prediction on input data.
+        
+        Args:
+            input_data: Dictionary containing query and other context
+            
+        Returns:
+            Latency predictions for all available models
+        """
+        # To access the inputs, you can use the input_data dictionary.
+        # The graph guarantees that any input nodes have already been executed.
+        token_prediction = input_data.get('TokenPrediction', 0)
+        
+        # Get the query text (assuming it's passed in input_data)
+        query_text = input_data.get('query', '')
+        
+        # Predict latencies for all models
+        predictions = self.predict_latencies(query_text, token_prediction)
+        
+        return f"Output value from node {self.name}."
         
     def estimate_input_tokens(self, text: str) -> int:
         """
@@ -105,8 +132,11 @@ class LatencyPredictor:
         # Use Mistral tokenizer if available (most accurate)
         if MISTRAL_AVAILABLE and tokenizer:
             try:
-                tokens = tokenizer.encode(text)
-                return len(tokens)
+                # Use proper Mistral chat completion format
+                messages = [UserMessage(content=text)]
+                request = ChatCompletionRequest(messages=messages)
+                tokens = tokenizer.encode_chat_completion(request)
+                return len(tokens.tokens)
             except Exception as e:
                 print(f"⚠️ Mistral tokenization failed: {e}")
         
@@ -253,17 +283,7 @@ class LatencyPredictor:
                                   If None, uses token predictor estimation.
                                   
         Returns:
-            Dictionary mapping model names to latency predictions:
-            {
-                "model_name": {
-                    "ttft_ms": float,
-                    "full_latency_ms": float,
-                    "prompt_tokens": int,
-                    "expected_output_tokens": int,
-                    "model_size_gb": float,
-                    "model_shards": int
-                }
-            }
+            Dictionary mapping model names to latency predictions
         """
         # Get accurate token counts
         prompt_tokens = self.estimate_input_tokens(prompt)
@@ -289,6 +309,30 @@ class LatencyPredictor:
             }
         
         return results
+
+
+# Legacy LatencyPredictor class for backward compatibility
+class LatencyPredictor:
+    """
+    Legacy class for backward compatibility.
+    Use LatencyPredictorNode for ensemble graph integration.
+    """
+    
+    def __init__(self, models: Optional[List[ModelSpec]] = None, bandwidth_gbps: float = 240.0):
+        """Initialize legacy latency predictor."""
+        self.node = LatencyPredictorNode()
+        
+    def predict_latencies(self, prompt: str, expected_output_tokens: int = None):
+        """Predict latencies using the node implementation."""
+        return self.node.predict_latencies(prompt, expected_output_tokens)
+    
+    def get_fastest_model(self, prompt: str):
+        """Get fastest model using the node implementation."""
+        return self.node.get_fastest_model(prompt)
+    
+    def recommend_models_for_budget(self, prompt: str, max_ttft_ms: float):
+        """Get budget recommendations using the node implementation."""
+        return self.node.recommend_models_for_budget(prompt, max_ttft_ms)
     
     def recommend_models_for_budget(
         self, 
@@ -410,7 +454,7 @@ def predict_latency(
 
 # Example usage and testing
 if __name__ == "__main__":
-    print("🧪 Testing LatencyPredictor with Token Predictor Integration...")
+    print("🧪 Testing LatencyPredictor with A10 GPU Integration...")
     
     try:
         # Initialize predictor
