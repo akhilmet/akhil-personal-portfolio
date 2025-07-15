@@ -49,7 +49,7 @@ class ModelSpec:
     client_model_name: str
 
 
-class LatencyPredictor:
+class LatencyPredictorNode:
     """
     Hardware-based latency predictor for LLM routing decisions.
     
@@ -86,28 +86,6 @@ class LatencyPredictor:
             except Exception as e:
                 print(f"⚠️ Failed to load token predictor: {e}")
     
-    def _execute(self, input_data):
-        """
-        Execute latency prediction on input data.
-        
-        Args:
-            input_data: Dictionary containing query and other context
-            
-        Returns:
-            Latency predictions for all available models
-        """
-        # To access the inputs, you can use the input_data dictionary.
-        # The graph guarantees that any input nodes have already been executed.
-        token_prediction = input_data.get('TokenPrediction', 0)
-        
-        # Get the query text (assuming it's passed in input_data)
-        query_text = input_data.get('query', '')
-        
-        # Predict latencies for all models
-        predictions = self.predict_latencies(query_text, token_prediction)
-        
-        return f"Output value from node {self.name}."
-        
     def estimate_input_tokens(self, text: str) -> int:
         """
         Estimate token count for input text using Mistral tokenizer.
@@ -306,30 +284,6 @@ class LatencyPredictor:
             }
         
         return results
-
-
-# Legacy LatencyPredictor class for backward compatibility
-class LatencyPredictor:
-    """
-    Legacy class for backward compatibility.
-    Use LatencyPredictorNode for ensemble graph integration.
-    """
-    
-    def __init__(self, models: Optional[List[ModelSpec]] = None, bandwidth_gbps: float = 240.0):
-        """Initialize legacy latency predictor."""
-        self.node = LatencyPredictorNode()
-        
-    def predict_latencies(self, prompt: str, expected_output_tokens: int = None):
-        """Predict latencies using the node implementation."""
-        return self.node.predict_latencies(prompt, expected_output_tokens)
-    
-    def get_fastest_model(self, prompt: str):
-        """Get fastest model using the node implementation."""
-        return self.node.get_fastest_model(prompt)
-    
-    def recommend_models_for_budget(self, prompt: str, max_ttft_ms: float):
-        """Get budget recommendations using the node implementation."""
-        return self.node.recommend_models_for_budget(prompt, max_ttft_ms)
     
     def recommend_models_for_budget(
         self, 
@@ -344,15 +298,7 @@ class LatencyPredictor:
             max_ttft_ms: Maximum acceptable TTFT in milliseconds
             
         Returns:
-            List of model recommendations sorted by TTFT (fastest first):
-            [
-                {
-                    "model_name": str,
-                    "client_model_name": str,
-                    "ttft_ms": float,
-                    "prompt_tokens": int
-                }
-            ]
+            List of model recommendations sorted by TTFT (fastest first)
         """
         prompt_tokens = self.estimate_input_tokens(prompt)
         candidates = []
@@ -439,7 +385,7 @@ def predict_latency(
     Returns:
         Dictionary with latency predictions
     """
-    predictor = LatencyPredictor()
+    predictor = LatencyPredictorNode()
     predictions = predictor.predict_latencies(prompt, expected_output_tokens)
     
     if model_name not in predictions:
@@ -451,11 +397,11 @@ def predict_latency(
 
 # Example usage and testing
 if __name__ == "__main__":
-    print("🧪 Testing LatencyPredictor with A10 GPU Integration...")
+    print("🧪 Testing LatencyPredictorNode with A10 GPU Integration...")
     
     try:
         # Initialize predictor
-        predictor = LatencyPredictor()
+        predictor = LatencyPredictorNode()
         
         # Test queries with different complexity levels
         test_queries = [
@@ -493,7 +439,7 @@ if __name__ == "__main__":
             print(f"  {rec['model_name']:15} ({model_obj.shards} A10s) | TTFT: {rec['ttft_ms']:6.1f}ms")
         
         print(f"\n📋 Available models: {predictor.get_available_models()}")
-        print("\n✅ LatencyPredictor test complete!")
+        print("\n✅ LatencyPredictorNode test complete!")
         
     except Exception as e:
         print(f"❌ Test failed: {str(e)}")
