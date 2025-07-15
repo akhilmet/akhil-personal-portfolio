@@ -19,9 +19,6 @@ import time
 from typing import List, Dict, Optional, Tuple
 from dataclasses import dataclass
 
-# Import the ensemble graph node base class
-from ..ensemble_graph.ensemble_graph_node import EnsembleGraphNode
-
 # Import the trained token predictor
 try:
     from token_predictor import TokenPredictorNode, predict_tokens
