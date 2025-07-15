@@ -1,3 +1,40 @@
+Latency = Time to read the entire model from GPU memory × Number of tokens to process
+Step-by-Step Process:
+1. Calculate Base Reading Time
+base_time_per_token = model_size_gb / (gpu_bandwidth × number_of_shards)
+
+# Example: llama-3.3-70b with 8 A10s
+base_time_per_token = 140 GB / (240 GB/s × 8) = 72.9 ms
+2. Calculate Input Processing (Prefill)
+python# Process all input tokens in parallel (one pass through model)
+prefill_time = input_tokens × base_time_per_token
+
+# Example: 8 input tokens
+prefill_time = 8 × 72.9 ms = 583 ms
+3. Calculate Output Generation (Decode)
+python# Generate each output token one-by-one (sequential)
+decode_time = output_tokens × base_time_per_token
+
+# Example: 180 output tokens  
+decode_time = 180 × 72.9 ms = 13,122 ms
+4. Total Latency
+python# TTFT (Time to First Token)
+ttft = prefill_time + base_time_per_token
+ttft = 583 + 72.9 = 656 ms
+
+# Full Completion Time
+total_time = prefill_time + decode_time
+total_time = 583 + 13,122 = 13,705 ms = 13.7 seconds
+
+Real-World Example:
+Query: "What is Python?" → Predict 118 tokens output
+llama-3.1-8b (1 A10):
+Base time: 16GB / 240GB/s = 66.7ms per token
+Input: 3 tokens × 66.7ms = 200ms
+Output: 118 tokens × 66.7ms = 7,870ms
+Total: 200 + 7,870 = 8,070ms = 8.1 seconds
+
+
 ```
 """
 Latency Predictor for Query Router
