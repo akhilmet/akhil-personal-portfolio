@@ -1,3 +1,4 @@
+```
 Latency = Time to read the entire model from GPU memory × Number of tokens to process
 Step-by-Step Process:
 1. Calculate Base Reading Time
@@ -33,7 +34,6 @@ Base time: 16GB / 240GB/s = 66.7ms per token
 Input: 3 tokens × 66.7ms = 200ms
 Output: 118 tokens × 66.7ms = 7,870ms
 Total: 200 + 7,870 = 8,070ms = 8.1 seconds
-
 
 ```
 """
