@@ -1,355 +1,462 @@
 ```
 """
-token_predictor.py - Production Token Prediction Module
+Latency Predictor for Query Router
 
-This module provides the TokenPredictorNode class for predicting response token counts
-using the trained Random Forest model and optimized feature extraction.
+Hardware-based latency prediction for intelligent LLM routing using the
+trained token predictor model and Mistral tokenizer for accurate estimates.
 
-Usage:
-    predictor = TokenPredictorNode()
-    predicted_tokens = predictor.predict("How do I debug Python code?")
+This module provides latency estimation based on A10 GPU memory bandwidth,
+model specifications, and predicted response token counts to enable optimal
+model selection in the query router.
+
+Hardware Configuration:
+- GPU Type: A10 (240 GB/s memory bandwidth per GPU)
+- Models: llama-3.1-8b (1 GPU), mixtral-8x7b (4 GPUs), llama-3.3-70b (8 GPUs)
 """
 
-import os
-import joblib
-import numpy as np
-import pandas as pd
-from typing import Union, Dict, Any, Optional
-import logging
-from pathlib import Path
+import re
+import time
+from typing import List, Dict, Optional, Tuple
+from dataclasses import dataclass
 
-# Import our optimized feature extraction
-from token_estimator_feature_collection import (
-    extract_optimized_features, 
-    get_label_encoders,
-    set_label_encoders,
-    TokenEstimatorFeatureCollection
-)
+# Import the trained token predictor
+try:
+    from token_predictor import TokenPredictorNode, predict_tokens
+    TOKEN_PREDICTOR_AVAILABLE = True
+except ImportError:
+    print("⚠️ Token predictor not available, using fallback estimation")
+    TOKEN_PREDICTOR_AVAILABLE = False
 
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Import Mistral tokenizer for accurate token counting
+try:
+    from mistral_common.tokens.tokenizers.mistral import MistralTokenizer
+    MISTRAL_AVAILABLE = True
+    tokenizer = MistralTokenizer.v3()
+except ImportError:
+    print("⚠️ Mistral tokenizer not available, using approximation")
+    MISTRAL_AVAILABLE = False
+    tokenizer = None
 
-class TokenPredictorNode:
+
+@dataclass
+class ModelSpec:
+    """Model specification for latency calculations."""
+    name: str
+    size_gb: float
+    shards: int
+    client_model_name: str
+
+
+class LatencyPredictor:
     """
-    Production token predictor using Random Forest model with optimized features.
+    Hardware-based latency predictor for LLM routing decisions.
     
-    This class handles loading the trained model, extracting features from queries,
-    and predicting response token counts for LLM routing decisions.
+    Predicts Time-to-First-Token (TTFT) and full completion latency
+    based on model size, GPU memory bandwidth, and accurate token counts
+    using the trained token predictor model.
     """
     
-    def __init__(self, model_path: Optional[str] = None, 
-                 encoders_path: Optional[str] = None):
+    # Default model configurations for Capital One AI Sandbox (from production data)
+    DEFAULT_MODELS = [
+        ModelSpec("llama-3.1-8b", size_gb=16, shards=1, client_model_name="genai-llama3-8b-sandbox-1"),
+        ModelSpec("llama-3.3-70b", size_gb=140, shards=8, client_model_name="genai-llama3-70b-sandbox-1"), 
+        ModelSpec("mixtral-8x7b", size_gb=87, shards=4, client_model_name="genai-mixtral-8x7b-sandbox-1"),
+    ]
+    
+    def __init__(self, models: Optional[List[ModelSpec]] = None, bandwidth_gbps: float = 240.0):
         """
-        Initialize the TokenPredictorNode.
+        Initialize the latency predictor.
         
         Args:
-            model_path: Path to the trained Random Forest model (.pkl file)
-            encoders_path: Path to the label encoders (.pkl file) - optional
+            models: List of ModelSpec objects. Uses defaults if None.
+            bandwidth_gbps: GPU memory bandwidth in GB/s per A10 GPU (default: 240.0)
         """
+        self.models = models or self.DEFAULT_MODELS
+        self.bandwidth_gbps = bandwidth_gbps
+        self._model_lookup = {model.name: model for model in self.models}
         
-        # Default paths relative to this file
-        default_base_path = Path(__file__).parent / "model_artifacts"
-        
-        self.model_path = model_path or str(default_base_path / "random_forest_token_predictor.pkl")
-        self.encoders_path = encoders_path or str(default_base_path / "label_encoders.pkl")
-        
-        # Initialize components
-        self.model = None
-        self.selected_features = None
-        self.feature_collector = None
-        self.is_loaded = False
-        
-        # Load model components
-        self._load_model()
-    
-    def _load_model(self) -> None:
-        """Load the trained model and associated components."""
-        try:
-            logger.info("🔄 Loading Random Forest token predictor model...")
-            
-            # Load the trained Random Forest model
-            if not os.path.exists(self.model_path):
-                raise FileNotFoundError(f"Model file not found: {self.model_path}")
-                
-            self.model = joblib.load(self.model_path)
-            logger.info(f"✅ Loaded model from: {self.model_path}")
-            
-            # Load label encoders (optional - we can work without them)
-            if os.path.exists(self.encoders_path):
-                encoders = joblib.load(self.encoders_path)
-                set_label_encoders(encoders)
-                logger.info(f"✅ Loaded encoders from: {self.encoders_path}")
-            else:
-                logger.info(f"⚠️ Encoders file not found: {self.encoders_path} - using built-in encoding")
-            
-            # Set features based on our extraction methods (don't require external file)
-            self._set_default_features()
-            logger.info(f"✅ Using {len(self.selected_features)} features based on our extraction methods")
-            
-            # Initialize feature collector
-            self.feature_collector = TokenEstimatorFeatureCollection()
-            
-            self.is_loaded = True
-            logger.info("✅ TokenPredictorNode initialization complete!")
-            
-        except Exception as e:
-            logger.error(f"❌ Failed to load model: {str(e)}")
-            raise RuntimeError(f"Model loading failed: {str(e)}")
-    
-    def _set_default_features(self) -> None:
-        """Set default features based on our feature extraction methods."""
-        self.selected_features = [
-            # Core numerical features (that we can extract)
-            'complexity_score', 'word_count', 'has_questions', 'query_token_length',
-            'char_count', 'caps_ratio', 'punctuation_density', 'avg_word_length',
-            
-            # Category features (that we can extract) 
-            'category0', 'category1', 'category2', 'category3', 
-            'category4', 'category5', 'category6',
-            
-            # Encoded categorical features (that we can encode)
-            'question_type_encoded', 'other_subcategory_encoded', 'query_context_encoded'
-        ]
-        logger.info(f"✅ Using default features: {len(self.selected_features)} features")
-    
-    def _extract_feature_vector(self, query: str) -> np.ndarray:
-        """
-        Extract feature vector from query text.
-        
-        Args:
-            query: Input query text
-            
-        Returns:
-            numpy array of feature values in the correct order
-        """
-        try:
-            # Extract all features using optimized feature collection
-            features_dict = self.feature_collector.extract_optimized_features(query)
-            
-            # Create feature vector in the correct order
-            feature_vector = []
-            for feature_name in self.selected_features:
-                if feature_name in features_dict:
-                    feature_vector.append(features_dict[feature_name])
-                else:
-                    # Use default value for missing features
-                    feature_vector.append(0)
-                    logger.warning(f"⚠️ Missing feature '{feature_name}', using default value 0")
-            
-            return np.array(feature_vector)
-            
-        except Exception as e:
-            logger.error(f"❌ Feature extraction failed for query: '{query[:50]}...' Error: {str(e)}")
-            raise RuntimeError(f"Feature extraction failed: {str(e)}")
-    
-    def _execute(self, input_data: str) -> int:
-        """
-        Execute prediction on input data (main method as specified by Christopher).
-        
-        Args:
-            input_data: Query text to predict tokens for
-            
-        Returns:
-            Integer number of predicted tokens
-        """
-        if not self.is_loaded:
-            raise RuntimeError("Model not loaded. Call _load_model() first.")
-        
-        if not input_data or not isinstance(input_data, str):
-            logger.warning("⚠️ Empty or invalid input_data provided")
-            return 50  # Default fallback value
-        
-        try:
-            # Extract feature vector from input_data using utils functions
-            feature_vector = self._extract_feature_vector(input_data)
-            
-            # Ask the model to predict and return integer
-            prediction = self.model.predict([feature_vector])[0]
-            
-            # Ensure prediction is a positive integer
-            predicted_tokens = max(1, int(round(prediction)))
-            
-            logger.debug(f"🔮 Prediction: '{input_data[:50]}...' → {predicted_tokens} tokens")
-            
-            return predicted_tokens
-            
-        except Exception as e:
-            logger.error(f"❌ Prediction failed for input_data: '{input_data[:50]}...' Error: {str(e)}")
-            # Return reasonable fallback based on query length
-            fallback = max(10, len(input_data.split()) * 3)
-            logger.warning(f"⚠️ Using fallback prediction: {fallback} tokens")
-            return fallback
-    
-    def predict(self, query: str) -> int:
-        """
-        Predict the number of response tokens for a given query.
-        Wrapper around _execute for backward compatibility.
-        
-        Args:
-            query: Input query text
-            
-        Returns:
-            Predicted number of response tokens (integer)
-        """
-        return self._execute(query)
-    
-    def predict_batch(self, queries: list) -> list:
-        """
-        Predict token counts for a batch of queries.
-        
-        Args:
-            queries: List of query strings
-            
-        Returns:
-            List of predicted token counts
-        """
-        if not self.is_loaded:
-            raise RuntimeError("Model not loaded. Call _load_model() first.")
-        
-        predictions = []
-        for query in queries:
+        # Initialize token predictor
+        self.token_predictor = None
+        if TOKEN_PREDICTOR_AVAILABLE:
             try:
-                prediction = self.predict(query)
-                predictions.append(prediction)
+                self.token_predictor = TokenPredictorNode()
+                print("✅ Token predictor loaded successfully")
             except Exception as e:
-                logger.error(f"❌ Batch prediction failed for query: '{query[:50]}...'")
-                predictions.append(50)  # Fallback value
+                print(f"⚠️ Failed to load token predictor: {e}")
         
-        logger.info(f"✅ Batch prediction complete: {len(predictions)} queries processed")
-        return predictions
-    
-    def get_feature_importance(self) -> Dict[str, float]:
+    def estimate_input_tokens(self, text: str) -> int:
         """
-        Get feature importance scores from the trained model.
+        Estimate token count for input text using Mistral tokenizer.
         
-        Returns:
-            Dictionary mapping feature names to importance scores
-        """
-        if not self.is_loaded:
-            raise RuntimeError("Model not loaded.")
+        Uses accurate Mistral tokenization when available, falls back to
+        Llama approximation patterns:
+        - ~1.3 tokens per word for English
+        - Additional tokens for punctuation and special characters
         
-        if not hasattr(self.model, 'feature_importances_'):
-            raise RuntimeError("Model does not support feature importance.")
-        
-        importance_dict = {}
-        for feature, importance in zip(self.selected_features, self.model.feature_importances_):
-            importance_dict[feature] = float(importance)
-        
-        return importance_dict
-    
-    def get_model_info(self) -> Dict[str, Any]:
-        """
-        Get information about the loaded model.
-        
-        Returns:
-            Dictionary with model information
-        """
-        if not self.is_loaded:
-            return {"status": "not_loaded"}
-        
-        info = {
-            "status": "loaded",
-            "model_type": type(self.model).__name__,
-            "n_features": len(self.selected_features),
-            "features": self.selected_features,
-            "model_path": self.model_path,
-            "encoders_path": self.encoders_path
-        }
-        
-        # Add model-specific info
-        if hasattr(self.model, 'n_estimators'):
-            info["n_estimators"] = self.model.n_estimators
-        if hasattr(self.model, 'max_depth'):
-            info["max_depth"] = self.model.max_depth
-        if hasattr(self.model, 'oob_score_'):
-            info["oob_score"] = self.model.oob_score_
+        Args:
+            text: Input text to tokenize
             
-        return info
+        Returns:
+            Estimated input token count
+        """
+        if not text or not text.strip():
+            return 1
+            
+        # Use Mistral tokenizer if available (most accurate)
+        if MISTRAL_AVAILABLE and tokenizer:
+            try:
+                tokens = tokenizer.encode(text)
+                return len(tokens)
+            except Exception as e:
+                print(f"⚠️ Mistral tokenization failed: {e}")
+        
+        # Fallback to approximation
+        words = text.split()
+        
+        # Base token count (Llama averages ~1.3 tokens per word)
+        base_tokens = len(words) * 1.3
+        
+        # Additional tokens for various other elements
+        punct_tokens = len(re.findall(r'[.,!?;:()\[\]"\']', text)) * 0.5
+        number_tokens = len(re.findall(r'\d+', text)) * 0.7
+        special_tokens = len(re.findall(r'[@#$%^&*+=<>~/\\|]', text)) * 0.3
+        
+        total_tokens = base_tokens + punct_tokens + number_tokens + special_tokens
+        return max(1, int(total_tokens))
     
-    def reload_model(self) -> None:
-        """Reload the model from disk."""
-        logger.info("🔄 Reloading model...")
-        self.is_loaded = False
-        self._load_model()
+    def estimate_output_tokens(self, text: str) -> int:
+        """
+        Estimate expected output token count using the trained token predictor.
+        
+        Uses the Random Forest model trained on query-response patterns
+        to predict response length with high accuracy (~13.75 MAE).
+        
+        Args:
+            text: Input prompt text
+            
+        Returns:
+            Predicted output token count
+        """
+        if not text or not text.strip():
+            return 50  # Default fallback
+        
+        # Use trained token predictor if available
+        if TOKEN_PREDICTOR_AVAILABLE and self.token_predictor:
+            try:
+                predicted_tokens = self.token_predictor._execute(text)
+                return max(1, predicted_tokens)
+            except Exception as e:
+                print(f"⚠️ Token prediction failed: {e}")
+        
+        # Fallback to heuristic-based estimation
+        input_tokens = self.estimate_input_tokens(text)
+        text_lower = text.lower()
+        
+        # Base multiplier based on input length
+        base_multiplier = 2.0
+        
+        # Adjust based on query type
+        if any(keyword in text_lower for keyword in ['explain', 'describe', 'tell me about']):
+            base_multiplier = 3.5  # Explanations tend to be longer
+        elif any(keyword in text_lower for keyword in ['code', 'function', 'implement']):
+            base_multiplier = 4.0  # Code responses are typically longer
+        elif any(keyword in text_lower for keyword in ['list', 'steps', 'how to']):
+            base_multiplier = 3.0  # Structured responses
+        elif text.strip().endswith('?') and len(text.split()) < 10:
+            base_multiplier = 1.5  # Short questions
+        elif any(keyword in text_lower for keyword in ['summary', 'summarize', 'brief']):
+            base_multiplier = 1.2  # Summaries are shorter
+        
+        estimated_output = int(input_tokens * base_multiplier)
+        return max(10, estimated_output)
+    
+    def estimate_ttft(self, prompt_tokens: int, model_name: str) -> float:
+        """
+        Estimate Time-to-First-Token (TTFT) in milliseconds.
+        
+        TTFT = Prefill latency + First token decode latency
+        Based on GPU memory bandwidth bottleneck model.
+        
+        Args:
+            prompt_tokens: Number of tokens in the prompt
+            model_name: Name of the model to use
+            
+        Returns:
+            Estimated TTFT in milliseconds
+            
+        Raises:
+            ValueError: If model_name is not found
+        """
+        model = self._get_model(model_name)
+        
+        # Effective bandwidth scales with A10 GPU shards
+        effective_bandwidth = self.bandwidth_gbps * model.shards
+        
+        # Base per-token latency (ms) - accounts for A10 memory access patterns
+        base_latency_ms = (model.size_gb / effective_bandwidth) * 1000.0
+        
+        # Prefill cost (process entire prompt)
+        prefill_cost = prompt_tokens * base_latency_ms
+        
+        # First token decode cost (single token generation)
+        decode_cost = base_latency_ms
+        
+        return prefill_cost + decode_cost
+    
+    def estimate_full_latency(
+        self,
+        prompt_tokens: int,
+        expected_output_tokens: int,
+        model_name: str
+    ) -> float:
+        """
+        Estimate end-to-end completion latency in milliseconds.
+        
+        Full latency = Prefill latency + (Output tokens × Decode latency)
+        
+        Args:
+            prompt_tokens: Number of tokens in the prompt
+            expected_output_tokens: Expected number of output tokens
+            model_name: Name of the model to use
+            
+        Returns:
+            Estimated full completion latency in milliseconds
+            
+        Raises:
+            ValueError: If model_name is not found
+        """
+        model = self._get_model(model_name)
+        
+        # Effective bandwidth scales with A10 GPU shards
+        effective_bandwidth = self.bandwidth_gbps * model.shards
+        base_latency_ms = (model.size_gb / effective_bandwidth) * 1000.0
+        
+        # Prefill phase (process entire prompt once)
+        prefill_cost = prompt_tokens * base_latency_ms
+        
+        # Decode phase (generate each output token sequentially)
+        decode_cost = expected_output_tokens * base_latency_ms
+        
+        return prefill_cost + decode_cost
+    
+    def predict_latencies(
+        self, 
+        prompt: str, 
+        expected_output_tokens: int = None
+    ) -> Dict[str, Dict[str, float]]:
+        """
+        Predict latencies for all available models using trained token predictor.
+        
+        Args:
+            prompt: Input prompt text
+            expected_output_tokens: Expected number of output tokens.
+                                  If None, uses token predictor estimation.
+                                  
+        Returns:
+            Dictionary mapping model names to latency predictions:
+            {
+                "model_name": {
+                    "ttft_ms": float,
+                    "full_latency_ms": float,
+                    "prompt_tokens": int,
+                    "expected_output_tokens": int,
+                    "model_size_gb": float,
+                    "model_shards": int
+                }
+            }
+        """
+        # Get accurate token counts
+        prompt_tokens = self.estimate_input_tokens(prompt)
+        
+        if expected_output_tokens is None:
+            expected_output_tokens = self.estimate_output_tokens(prompt)
+        
+        results = {}
+        
+        for model in self.models:
+            ttft = self.estimate_ttft(prompt_tokens, model.name)
+            full_latency = self.estimate_full_latency(
+                prompt_tokens, expected_output_tokens, model.name
+            )
+            
+            results[model.name] = {
+                "ttft_ms": round(ttft, 2),
+                "full_latency_ms": round(full_latency, 2),
+                "prompt_tokens": prompt_tokens,
+                "expected_output_tokens": expected_output_tokens,
+                "model_size_gb": model.size_gb,
+                "model_shards": model.shards
+            }
+        
+        return results
+    
+    def recommend_models_for_budget(
+        self, 
+        prompt: str, 
+        max_ttft_ms: float
+    ) -> List[Dict[str, any]]:
+        """
+        Recommend models that meet a TTFT budget requirement.
+        
+        Args:
+            prompt: Input prompt text
+            max_ttft_ms: Maximum acceptable TTFT in milliseconds
+            
+        Returns:
+            List of model recommendations sorted by TTFT (fastest first):
+            [
+                {
+                    "model_name": str,
+                    "client_model_name": str,
+                    "ttft_ms": float,
+                    "prompt_tokens": int
+                }
+            ]
+        """
+        prompt_tokens = self.estimate_input_tokens(prompt)
+        candidates = []
+        
+        for model in self.models:
+            ttft = self.estimate_ttft(prompt_tokens, model.name)
+            
+            if ttft <= max_ttft_ms:
+                candidates.append({
+                    "model_name": model.name,
+                    "client_model_name": model.client_model_name,
+                    "ttft_ms": round(ttft, 2),
+                    "prompt_tokens": prompt_tokens,
+                    "model_size_gb": model.size_gb,
+                    "model_shards": model.shards
+                })
+        
+        # Sort by TTFT (fastest first)
+        return sorted(candidates, key=lambda x: x["ttft_ms"])
+    
+    def get_fastest_model(self, prompt: str) -> Dict[str, any]:
+        """
+        Get the fastest model for a given prompt based on TTFT.
+        
+        Args:
+            prompt: Input prompt text
+            
+        Returns:
+            Dictionary with fastest model information including predictions
+        """
+        predictions = self.predict_latencies(prompt)
+        fastest_model = min(predictions.items(), key=lambda x: x[1]["ttft_ms"])
+        
+        model_obj = self._get_model(fastest_model[0])
+        
+        return {
+            "model_name": fastest_model[0],
+            "client_model_name": model_obj.client_model_name,
+            **fastest_model[1]
+        }
+    
+    def _get_model(self, model_name: str) -> ModelSpec:
+        """
+        Get model specification by name.
+        
+        Args:
+            model_name: Name of the model
+            
+        Returns:
+            ModelSpec object
+            
+        Raises:
+            ValueError: If model not found
+        """
+        if model_name not in self._model_lookup:
+            available_models = list(self._model_lookup.keys())
+            raise ValueError(f"Model '{model_name}' not found. Available models: {available_models}")
+        return self._model_lookup[model_name]
+    
+    def get_available_models(self) -> List[str]:
+        """
+        Get list of available model names.
+        
+        Returns:
+            List of model names
+        """
+        return [model.name for model in self.models]
 
 
-# Convenience functions for direct usage
-_global_predictor = None
-
-def get_predictor() -> TokenPredictorNode:
-    """Get or create the global token predictor instance."""
-    global _global_predictor
-    if _global_predictor is None:
-        _global_predictor = TokenPredictorNode()
-    return _global_predictor
-
-def predict_tokens(query: str) -> int:
+# Convenience function for quick predictions
+def predict_latency(
+    prompt: str, 
+    model_name: str, 
+    expected_output_tokens: int = None
+) -> Dict[str, float]:
     """
-    Convenience function to predict tokens for a single query.
+    Quick latency prediction for a single model using trained token predictor.
     
     Args:
-        query: Input query text
+        prompt: Input prompt text
+        model_name: Name of the model
+        expected_output_tokens: Expected output tokens (uses predictor if None)
         
     Returns:
-        Predicted number of response tokens
+        Dictionary with latency predictions
     """
-    predictor = get_predictor()
-    return predictor.predict(query)
-
-def predict_tokens_batch(queries: list) -> list:
-    """
-    Convenience function to predict tokens for multiple queries.
+    predictor = LatencyPredictor()
+    predictions = predictor.predict_latencies(prompt, expected_output_tokens)
     
-    Args:
-        queries: List of query strings
-        
-    Returns:
-        List of predicted token counts
-    """
-    predictor = get_predictor()
-    return predictor.predict_batch(queries)
+    if model_name not in predictions:
+        available_models = list(predictions.keys())
+        raise ValueError(f"Model '{model_name}' not found. Available models: {available_models}")
+    
+    return predictions[model_name]
 
 
 # Example usage and testing
 if __name__ == "__main__":
-    # Test the token predictor
-    print("🧪 Testing TokenPredictorNode...")
+    print("🧪 Testing LatencyPredictor with Token Predictor Integration...")
     
     try:
         # Initialize predictor
-        predictor = TokenPredictorNode()
+        predictor = LatencyPredictor()
         
-        # Test queries
+        # Test queries with different complexity levels
         test_queries = [
             "What is Python?",
             "How do I debug Python code that's throwing an error?",
-            "Write a function to sort a list of numbers in ascending order.",
-            "Explain the concept of machine learning in simple terms.",
-            "What are the main differences between SQL and NoSQL databases?"
+            "Write a function to sort a list of numbers in ascending order and explain the algorithm.",
+            "Explain the concept of machine learning, deep learning, and neural networks in detail.",
+            "Compare the performance characteristics of different sorting algorithms."
         ]
         
-        print(f"\n🔮 Testing predictions:")
-        for query in test_queries:
-            tokens = predictor.predict(query)
-            print(f"   '{query[:50]}...' → {tokens} tokens")
+        print(f"\n🔮 Testing latency predictions with A10 GPUs:")
+        for i, query in enumerate(test_queries, 1):
+            print(f"\n--- Query {i}: '{query[:60]}...' ---")
+            
+            # Get predictions for all models
+            predictions = predictor.predict_latencies(query)
+            
+            for model_name, pred in predictions.items():
+                # Show shard info for context
+                model_obj = predictor._get_model(model_name)
+                print(f"  {model_name:15} ({model_obj.shards} A10s) | "
+                      f"TTFT: {pred['ttft_ms']:6.1f}ms | "
+                      f"Full: {pred['full_latency_ms']:6.1f}ms | "
+                      f"Tokens: {pred['prompt_tokens']}→{pred['expected_output_tokens']}")
+            
+            # Get fastest model recommendation
+            fastest = predictor.get_fastest_model(query)
+            print(f"  🏆 Fastest: {fastest['model_name']} ({fastest['ttft_ms']:.1f}ms)")
         
-        # Test batch prediction
-        batch_predictions = predictor.predict_batch(test_queries)
-        print(f"\n📊 Batch prediction: {batch_predictions}")
+        # Test budget-based recommendations
+        print(f"\n💰 Models under 200ms TTFT budget (A10 adjusted):")
+        budget_recs = predictor.recommend_models_for_budget(test_queries[0], 200.0)
+        for rec in budget_recs:
+            model_obj = predictor._get_model(rec['model_name'])
+            print(f"  {rec['model_name']:15} ({model_obj.shards} A10s) | TTFT: {rec['ttft_ms']:6.1f}ms")
         
-        # Show model info
-        model_info = predictor.get_model_info()
-        print(f"\n📋 Model Info:")
-        print(f"   Status: {model_info['status']}")
-        print(f"   Model Type: {model_info['model_type']}")
-        print(f"   Features: {model_info['n_features']}")
-        
-        print("\n✅ TokenPredictorNode test complete!")
+        print(f"\n📋 Available models: {predictor.get_available_models()}")
+        print("\n✅ LatencyPredictor test complete!")
         
     except Exception as e:
         print(f"❌ Test failed: {str(e)}")
-        print("🔧 Make sure you've trained the model using the retraining notebook first!")
+        print("🔧 Make sure token_predictor.py and model artifacts are available!")
 ```
 ## About Me
 
