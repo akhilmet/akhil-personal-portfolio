@@ -21,7 +21,14 @@ import logging
 from pathlib import Path
 
 # Import ensemble graph node base class
-from ..ensemble_graph.ensemble_graph_node import EnsembleGraphNode
+try:
+    from ..ensemble_graph.ensemble_graph_node import EnsembleGraphNode
+except ImportError:
+    # Fallback for when running standalone or testing
+    class EnsembleGraphNode:
+        def __init__(self, name, description):
+            self.name = name
+            self.description = description
 
 # Import our optimized feature extraction
 from token_estimator_feature_collection import (
