@@ -453,6 +453,23 @@ if __name__ == "__main__":
                     print(f"  {model_name:15} ({model_obj.shards} A10s) | "
                           f"TTFT: {pred['ttft_ms']:6.1f}ms | "
                           f"Full: {pred['full_latency_ms']:6.1f}ms | "
+                          f"Input: {pred['prompt_tokens']} → Output: {pred['expected_output_tokens']} tokens")
+            else:
+                print(f"  Error: {result['error']}")
+        
+        # Test budget-based recommendations
+        print(f"\n💰 Models under 500ms TTFT budget (A10 adjusted):")
+        budget_recs = predictor.recommend_models_for_budget(test_queries[0], 500.0, 120)
+        for rec in budget_recs:
+            model_obj = predictor._get_model(rec['model_name'])
+            print(f"  {rec['model_name']:15} ({model_obj.shards} A10s) | TTFT: {rec['ttft_ms']:6.1f}ms")
+        
+        print(f"\n📋 Available models: {predictor.get_available_models()}")
+        print("\n✅ LatencyPredictorNode test complete!")
+        
+    except Exception as e:
+        print(f"❌ Test failed: {str(e)}")
+        print("🔧 Make sure token_predictor.py and model artifacts are available!")
 ```
 ## About Me
 
