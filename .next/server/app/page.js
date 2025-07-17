@@ -164,7 +164,7 @@ module.exports = require("next/dist/shared/lib/router/utils/is-bot");
 
 /***/ }),
 
-/***/ 120:
+/***/ 997:
 /***/ ((module) => {
 
 "use strict";
@@ -398,30 +398,31 @@ module.exports = {
 
 /***/ }),
 
-/***/ 5061:
+/***/ 5306:
 /***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
 
-Promise.resolve(/* import() eager */).then(__webpack_require__.t.bind(__webpack_require__, 125, 23));
-Promise.resolve(/* import() eager */).then(__webpack_require__.t.bind(__webpack_require__, 6249, 23));
-Promise.resolve(/* import() eager */).then(__webpack_require__.t.bind(__webpack_require__, 7844, 23));
-Promise.resolve(/* import() eager */).then(__webpack_require__.t.bind(__webpack_require__, 8782, 23));
-Promise.resolve(/* import() eager */).then(__webpack_require__.t.bind(__webpack_require__, 1522, 23))
-
-/***/ }),
-
-/***/ 5230:
-/***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
-
-Promise.resolve(/* import() eager */).then(__webpack_require__.t.bind(__webpack_require__, 3912, 23));
 Promise.resolve(/* import() eager */).then(__webpack_require__.bind(__webpack_require__, 6762));
 Promise.resolve(/* import() eager */).then(__webpack_require__.bind(__webpack_require__, 3838));
 Promise.resolve(/* import() eager */).then(__webpack_require__.bind(__webpack_require__, 4320));
 Promise.resolve(/* import() eager */).then(__webpack_require__.bind(__webpack_require__, 2617));
-Promise.resolve(/* import() eager */).then(__webpack_require__.bind(__webpack_require__, 3945))
+Promise.resolve(/* import() eager */).then(__webpack_require__.bind(__webpack_require__, 3945));
+Promise.resolve(/* import() eager */).then(__webpack_require__.bind(__webpack_require__, 2038));
+Promise.resolve(/* import() eager */).then(__webpack_require__.bind(__webpack_require__, 120))
 
 /***/ }),
 
-/***/ 3727:
+/***/ 9999:
+/***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
+
+Promise.resolve(/* import() eager */).then(__webpack_require__.t.bind(__webpack_require__, 1522, 23));
+Promise.resolve(/* import() eager */).then(__webpack_require__.t.bind(__webpack_require__, 125, 23));
+Promise.resolve(/* import() eager */).then(__webpack_require__.t.bind(__webpack_require__, 6249, 23));
+Promise.resolve(/* import() eager */).then(__webpack_require__.t.bind(__webpack_require__, 7844, 23));
+Promise.resolve(/* import() eager */).then(__webpack_require__.t.bind(__webpack_require__, 8782, 23))
+
+/***/ }),
+
+/***/ 1406:
 /***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
 
 Promise.resolve(/* import() eager */).then(__webpack_require__.bind(__webpack_require__, 3518));
@@ -429,6 +430,93 @@ Promise.resolve(/* import() eager */).then(__webpack_require__.bind(__webpack_re
 Promise.resolve(/* import() eager */).then(__webpack_require__.bind(__webpack_require__, 949));
 Promise.resolve(/* import() eager */).then(__webpack_require__.bind(__webpack_require__, 9238));
 Promise.resolve(/* import() eager */).then(__webpack_require__.bind(__webpack_require__, 798))
+
+/***/ }),
+
+/***/ 2038:
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (/* binding */ About)
+/* harmony export */ });
+/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(6931);
+/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__);
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(7640);
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(react__WEBPACK_IMPORTED_MODULE_1__);
+/* harmony import */ var _section_heading__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(7038);
+/* harmony import */ var framer_motion__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(9400);
+/* harmony import */ var _lib_hooks__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(6229);
+/* __next_internal_client_entry_do_not_use__ default auto */ 
+
+
+
+
+function About() {
+    const { ref } = (0,_lib_hooks__WEBPACK_IMPORTED_MODULE_3__/* .useSectionInView */ .r)("About");
+    return /*#__PURE__*/ (0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__.jsxs)(framer_motion__WEBPACK_IMPORTED_MODULE_4__/* .motion */ .E.section, {
+        ref: ref,
+        className: "mb-28 max-w-[45rem] text-center leading-8 sm:mb-40 scroll-mt-28",
+        initial: {
+            opacity: 0,
+            y: 100
+        },
+        animate: {
+            opacity: 1,
+            y: 0
+        },
+        transition: {
+            delay: 0.175
+        },
+        id: "about",
+        children: [
+            /*#__PURE__*/ react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__.jsx(_section_heading__WEBPACK_IMPORTED_MODULE_2__/* ["default"] */ .Z, {
+                children: "About me"
+            }),
+            /*#__PURE__*/ (0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__.jsxs)("p", {
+                className: "mb-3",
+                children: [
+                    "I'm a student at the University of Maryland, passionate about leveraging",
+                    " ",
+                    /*#__PURE__*/ react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__.jsx("span", {
+                        className: "font-medium",
+                        children: "AI and software engineering"
+                    }),
+                    " to create innovative solutions. My journey in tech is driven by a curiosity to explore the boundless possibilities of",
+                    " ",
+                    /*#__PURE__*/ react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__.jsx("span", {
+                        className: "font-medium",
+                        children: "machine learning"
+                    }),
+                    " and entrepreneurship. Currently, I'm honing my skills as a",
+                    " ",
+                    /*#__PURE__*/ react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__.jsx("span", {
+                        className: "font-medium",
+                        children: "Software Engineering Intern at Capital One"
+                    }),
+                    ", focusing on",
+                    " ",
+                    /*#__PURE__*/ react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__.jsx("span", {
+                        className: "font-medium",
+                        children: "Generative AI applications"
+                    }),
+                    "."
+                ]
+            }),
+            /*#__PURE__*/ (0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__.jsxs)("p", {
+                children: [
+                    /*#__PURE__*/ react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__.jsx("span", {
+                        className: "italic",
+                        children: "When I'm not coding"
+                    }),
+                    ", you can find me weightlifting, playing basketball, experimenting with new recipes in the kitchen, or spending time with my dog. I'm always looking to learn new technologies and improve my skills."
+                ]
+            })
+        ]
+    });
+}
+
 
 /***/ }),
 
@@ -753,6 +841,217 @@ function Header() {
                 })
             })
         ]
+    });
+}
+
+
+/***/ }),
+
+/***/ 120:
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (/* binding */ Intro)
+/* harmony export */ });
+/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(6931);
+/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__);
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(7640);
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(react__WEBPACK_IMPORTED_MODULE_1__);
+/* harmony import */ var next_image__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(8421);
+/* harmony import */ var next_image__WEBPACK_IMPORTED_MODULE_2___default = /*#__PURE__*/__webpack_require__.n(next_image__WEBPACK_IMPORTED_MODULE_2__);
+/* harmony import */ var framer_motion__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(9400);
+/* harmony import */ var next_link__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(1621);
+/* harmony import */ var next_link__WEBPACK_IMPORTED_MODULE_3___default = /*#__PURE__*/__webpack_require__.n(next_link__WEBPACK_IMPORTED_MODULE_3__);
+/* harmony import */ var react_icons_bs__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(5484);
+/* harmony import */ var react_icons_fa__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(6775);
+/* harmony import */ var _lib_hooks__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(6229);
+/* harmony import */ var _context_active_section_context__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(9238);
+/* harmony import */ var react_type_animation__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(3348);
+/* harmony import */ var react_tilt__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(4619);
+/* __next_internal_client_entry_do_not_use__ default auto */ 
+
+
+
+
+
+
+
+
+
+
+function Intro() {
+    const { ref } = (0,_lib_hooks__WEBPACK_IMPORTED_MODULE_4__/* .useSectionInView */ .r)("Home", 0.5);
+    const { setActiveSection, setTimeOfLastClick } = (0,_context_active_section_context__WEBPACK_IMPORTED_MODULE_5__.useActiveSectionContext)();
+    const [isHovered, setIsHovered] = (0,react__WEBPACK_IMPORTED_MODULE_1__.useState)(false);
+    return /*#__PURE__*/ react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__.jsx("section", {
+        ref: ref,
+        id: "home",
+        className: "mb-28 max-w-[50rem] sm:mb-0 scroll-mt-[100rem] px-4",
+        children: /*#__PURE__*/ (0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__.jsxs)("div", {
+            className: "flex flex-col-reverse md:flex-row items-center justify-between",
+            children: [
+                /*#__PURE__*/ (0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__.jsxs)("div", {
+                    className: "text-left md:w-2/3",
+                    children: [
+                        /*#__PURE__*/ (0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__.jsxs)(framer_motion__WEBPACK_IMPORTED_MODULE_8__/* .motion */ .E.h2, {
+                            className: "text-2xl font-medium mb-2",
+                            initial: {
+                                opacity: 0,
+                                y: 100
+                            },
+                            animate: {
+                                opacity: 1,
+                                y: 0
+                            },
+                            children: [
+                                "Nice to meet you! ",
+                                /*#__PURE__*/ react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__.jsx("span", {
+                                    className: "inline-block",
+                                    children: "\uD83D\uDC4B"
+                                })
+                            ]
+                        }),
+                        /*#__PURE__*/ react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__.jsx(framer_motion__WEBPACK_IMPORTED_MODULE_8__/* .motion */ .E.h1, {
+                            className: "text-4xl md:text-5xl font-bold mb-4",
+                            initial: {
+                                opacity: 0,
+                                y: 100
+                            },
+                            animate: {
+                                opacity: 1,
+                                y: 0
+                            },
+                            transition: {
+                                delay: 0.1
+                            },
+                            children: /*#__PURE__*/ react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__.jsx("span", {
+                                className: "transition-all duration-300 ease-in-out",
+                                style: {
+                                    background: isHovered ? "linear-gradient(to right, #4ade80, #3b82f6)" : "none",
+                                    WebkitBackgroundClip: isHovered ? "text" : "none",
+                                    WebkitTextFillColor: isHovered ? "transparent" : "inherit",
+                                    padding: isHovered ? "0 8px" : "0",
+                                    borderRadius: isHovered ? "4px" : "0"
+                                },
+                                onMouseEnter: ()=>setIsHovered(true),
+                                onMouseLeave: ()=>setIsHovered(false),
+                                children: "I'm Akhil Metukuru"
+                            })
+                        }),
+                        /*#__PURE__*/ (0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__.jsxs)(framer_motion__WEBPACK_IMPORTED_MODULE_8__/* .motion */ .E.h3, {
+                            className: "text-xl md:text-2xl mb-6",
+                            initial: {
+                                opacity: 0,
+                                y: 100
+                            },
+                            animate: {
+                                opacity: 1,
+                                y: 0
+                            },
+                            transition: {
+                                delay: 0.2
+                            },
+                            children: [
+                                "I'm a",
+                                " ",
+                                /*#__PURE__*/ react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__.jsx(react_type_animation__WEBPACK_IMPORTED_MODULE_6__/* .TypeAnimation */ .e, {
+                                    sequence: [
+                                        "Software Engineer.",
+                                        1400,
+                                        "Full-Stack Developer.",
+                                        1400,
+                                        "Problem-Solver.",
+                                        1400
+                                    ],
+                                    wrapper: "span",
+                                    speed: 50,
+                                    className: "font-bold",
+                                    repeat: Infinity
+                                })
+                            ]
+                        }),
+                        /*#__PURE__*/ (0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__.jsxs)(framer_motion__WEBPACK_IMPORTED_MODULE_8__/* .motion */ .E.div, {
+                            className: "flex items-center gap-2 text-lg font-medium",
+                            initial: {
+                                opacity: 0,
+                                y: 100
+                            },
+                            animate: {
+                                opacity: 1,
+                                y: 0
+                            },
+                            transition: {
+                                delay: 0.3
+                            },
+                            children: [
+                                /*#__PURE__*/ (0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__.jsxs)((next_link__WEBPACK_IMPORTED_MODULE_3___default()), {
+                                    href: "#contact",
+                                    className: "group bg-gray-900 text-white px-7 py-3 flex items-center gap-2 rounded-full outline-none focus:scale-110 hover:scale-110 hover:bg-gray-950 active:scale-105 transition",
+                                    onClick: ()=>{
+                                        setActiveSection("Contact");
+                                        setTimeOfLastClick(Date.now());
+                                    },
+                                    children: [
+                                        "Contact me here",
+                                        " ",
+                                        /*#__PURE__*/ react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__.jsx(react_icons_bs__WEBPACK_IMPORTED_MODULE_9__/* .BsArrowRight */ .lzl, {
+                                            className: "opacity-70 group-hover:translate-x-1 transition"
+                                        })
+                                    ]
+                                }),
+                                /*#__PURE__*/ react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__.jsx("a", {
+                                    className: "bg-white p-4 text-gray-700 hover:text-gray-950 flex items-center gap-2 rounded-full focus:scale-[1.15] hover:scale-[1.15] active:scale-105 transition cursor-pointer borderBlack dark:bg-white/10 dark:text-white/60",
+                                    href: "https://linkedin.com/in/akmet",
+                                    target: "_blank",
+                                    rel: "noopener noreferrer",
+                                    children: /*#__PURE__*/ react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__.jsx(react_icons_bs__WEBPACK_IMPORTED_MODULE_9__/* .BsLinkedin */ .NQh, {})
+                                }),
+                                /*#__PURE__*/ react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__.jsx("a", {
+                                    className: "bg-white p-4 text-gray-700 flex items-center gap-2 text-[1.35rem] rounded-full focus:scale-[1.15] hover:scale-[1.15] hover:text-gray-950 active:scale-105 transition cursor-pointer borderBlack dark:bg-white/10 dark:text-white/60",
+                                    href: "https://github.com/akhilmet",
+                                    target: "_blank",
+                                    rel: "noopener noreferrer",
+                                    children: /*#__PURE__*/ react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__.jsx(react_icons_fa__WEBPACK_IMPORTED_MODULE_10__/* .FaGithubSquare */ .NML, {})
+                                })
+                            ]
+                        })
+                    ]
+                }),
+                /*#__PURE__*/ react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__.jsx(framer_motion__WEBPACK_IMPORTED_MODULE_8__/* .motion */ .E.div, {
+                    className: "md:w-1/3 mb-8 md:mb-0",
+                    initial: {
+                        opacity: 0,
+                        scale: 0
+                    },
+                    animate: {
+                        opacity: 1,
+                        scale: 1
+                    },
+                    transition: {
+                        type: "tween",
+                        duration: 0.2
+                    },
+                    children: /*#__PURE__*/ react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__.jsx(react_tilt__WEBPACK_IMPORTED_MODULE_7__/* .Tilt */ .C, {
+                        className: "inline-block",
+                        options: {
+                            max: 25,
+                            scale: 1.05
+                        },
+                        children: /*#__PURE__*/ react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__.jsx((next_image__WEBPACK_IMPORTED_MODULE_2___default()), {
+                            src: "/profile-pic.png",
+                            alt: "Akhil Metukuru",
+                            width: 300,
+                            height: 300,
+                            quality: "95",
+                            priority: true,
+                            className: "rounded-full object-cover border-[0.35rem] border-white shadow-xl"
+                        })
+                    })
+                })
+            ]
+        })
     });
 }
 
@@ -1581,91 +1880,11 @@ __webpack_require__.d(__webpack_exports__, {
 
 // EXTERNAL MODULE: external "next/dist/compiled/react-experimental/jsx-runtime"
 var jsx_runtime_ = __webpack_require__(6931);
-// EXTERNAL MODULE: ./node_modules/next/dist/compiled/react-experimental/react.shared-subset.js
-var react_shared_subset = __webpack_require__(5465);
-// EXTERNAL MODULE: ./node_modules/next/image.js
-var next_image = __webpack_require__(993);
-var image_default = /*#__PURE__*/__webpack_require__.n(next_image);
-// EXTERNAL MODULE: ./node_modules/framer-motion/dist/es/render/dom/motion.mjs + 194 modules
-var motion = __webpack_require__(7700);
-;// CONCATENATED MODULE: ./components/about.tsx
-
-
-
-
-function About() {
-    return /*#__PURE__*/ jsx_runtime_.jsx("section", {
-        id: "about",
-        className: "py-20 bg-gray-100",
-        children: /*#__PURE__*/ (0,jsx_runtime_.jsxs)("div", {
-            className: "container mx-auto px-4",
-            children: [
-                /*#__PURE__*/ jsx_runtime_.jsx(motion/* motion */.E.h1, {
-                    className: "text-4xl font-bold text-center mb-12",
-                    initial: {
-                        opacity: 0,
-                        scale: 0
-                    },
-                    whileInView: {
-                        opacity: 1,
-                        scale: 1
-                    },
-                    children: "About"
-                }),
-                /*#__PURE__*/ (0,jsx_runtime_.jsxs)("div", {
-                    className: "flex flex-col md:flex-row items-center gap-8",
-                    children: [
-                        /*#__PURE__*/ jsx_runtime_.jsx(motion/* motion */.E.div, {
-                            className: "md:w-1/2",
-                            initial: {
-                                opacity: 0
-                            },
-                            whileInView: {
-                                opacity: 1
-                            },
-                            children: /*#__PURE__*/ jsx_runtime_.jsx((image_default()), {
-                                src: "/tahoe.jpg",
-                                alt: "Tahoe",
-                                width: 500,
-                                height: 300,
-                                objectFit: "cover",
-                                className: "rounded-lg shadow-lg"
-                            })
-                        }),
-                        /*#__PURE__*/ (0,jsx_runtime_.jsxs)(motion/* motion */.E.div, {
-                            className: "md:w-1/2 bg-white p-8 rounded-lg shadow-lg",
-                            initial: {
-                                opacity: 0
-                            },
-                            whileInView: {
-                                opacity: 1
-                            },
-                            children: [
-                                /*#__PURE__*/ jsx_runtime_.jsx("p", {
-                                    className: "mb-4",
-                                    children: "I'm a student at the University of Maryland, passionate about leveraging AI and software engineering to create innovative solutions. My journey in tech is driven by a curiosity to explore the boundless possibilities of machine learning and entrepreneurship."
-                                }),
-                                /*#__PURE__*/ jsx_runtime_.jsx("p", {
-                                    className: "mb-4",
-                                    children: "Currently, I'm honing my skills as a Software Engineering Intern at Halvik, focusing on Generative AI applications."
-                                }),
-                                /*#__PURE__*/ jsx_runtime_.jsx("p", {
-                                    children: "When I'm not coding, you can find me weightlifting, playing basketball, experimenting with new recipes in the kitchen, or spending time with my dog. I'm always looking to learn new technologies and improve my skills."
-                                })
-                            ]
-                        })
-                    ]
-                })
-            ]
-        })
-    });
-}
-
 // EXTERNAL MODULE: ./node_modules/next/dist/build/webpack/loaders/next-flight-loader/module-proxy.js
 var module_proxy = __webpack_require__(1313);
-;// CONCATENATED MODULE: ./components/contact.tsx
+;// CONCATENATED MODULE: ./components/about.tsx
 
-const proxy = (0,module_proxy.createProxy)(String.raw`/workspaces/akhil-personal-portfolio/components/contact.tsx`)
+const proxy = (0,module_proxy.createProxy)(String.raw`/workspaces/akhil-personal-portfolio/components/about.tsx`)
 
 // Accessing the __esModule property and exporting $$typeof are required here.
 // The __esModule getter forces the proxy target to create the default export
@@ -1675,7 +1894,20 @@ const { __esModule, $$typeof } = proxy;
 const __default__ = proxy.default;
 
 
-/* harmony default export */ const contact = (__default__);
+/* harmony default export */ const about = (__default__);
+;// CONCATENATED MODULE: ./components/contact.tsx
+
+const contact_proxy = (0,module_proxy.createProxy)(String.raw`/workspaces/akhil-personal-portfolio/components/contact.tsx`)
+
+// Accessing the __esModule property and exporting $$typeof are required here.
+// The __esModule getter forces the proxy target to create the default export
+// and the $$typeof value is for rendering logic to determine if the module
+// is a client boundary.
+const { __esModule: contact_esModule, $$typeof: contact_$$typeof } = contact_proxy;
+const contact_default_ = contact_proxy.default;
+
+
+/* harmony default export */ const contact = (contact_default_);
 ;// CONCATENATED MODULE: ./components/experience.tsx
 
 const experience_proxy = (0,module_proxy.createProxy)(String.raw`/workspaces/akhil-personal-portfolio/components/experience.tsx`)
@@ -1691,77 +1923,17 @@ const experience_default_ = experience_proxy.default;
 /* harmony default export */ const experience = (experience_default_);
 ;// CONCATENATED MODULE: ./components/intro.tsx
 
+const intro_proxy = (0,module_proxy.createProxy)(String.raw`/workspaces/akhil-personal-portfolio/components/intro.tsx`)
+
+// Accessing the __esModule property and exporting $$typeof are required here.
+// The __esModule getter forces the proxy target to create the default export
+// and the $$typeof value is for rendering logic to determine if the module
+// is a client boundary.
+const { __esModule: intro_esModule, $$typeof: intro_$$typeof } = intro_proxy;
+const intro_default_ = intro_proxy.default;
 
 
-
-function intro_About() {
-    return /*#__PURE__*/ jsx_runtime_.jsx("section", {
-        id: "about",
-        className: "py-20 bg-gray-100",
-        children: /*#__PURE__*/ (0,jsx_runtime_.jsxs)("div", {
-            className: "container mx-auto px-4",
-            children: [
-                /*#__PURE__*/ jsx_runtime_.jsx(motion/* motion */.E.h1, {
-                    className: "text-4xl font-bold text-center mb-12",
-                    initial: {
-                        opacity: 0,
-                        scale: 0
-                    },
-                    whileInView: {
-                        opacity: 1,
-                        scale: 1
-                    },
-                    children: "About"
-                }),
-                /*#__PURE__*/ (0,jsx_runtime_.jsxs)("div", {
-                    className: "flex flex-col md:flex-row items-center gap-8",
-                    children: [
-                        /*#__PURE__*/ jsx_runtime_.jsx(motion/* motion */.E.div, {
-                            className: "md:w-1/2",
-                            initial: {
-                                opacity: 0
-                            },
-                            whileInView: {
-                                opacity: 1
-                            },
-                            children: /*#__PURE__*/ jsx_runtime_.jsx((image_default()), {
-                                src: "/tahoe.jpg",
-                                alt: "Tahoe",
-                                width: 500,
-                                height: 300,
-                                objectFit: "cover",
-                                className: "rounded-lg shadow-lg"
-                            })
-                        }),
-                        /*#__PURE__*/ (0,jsx_runtime_.jsxs)(motion/* motion */.E.div, {
-                            className: "md:w-1/2 bg-white p-8 rounded-lg shadow-lg",
-                            initial: {
-                                opacity: 0
-                            },
-                            whileInView: {
-                                opacity: 1
-                            },
-                            children: [
-                                /*#__PURE__*/ jsx_runtime_.jsx("p", {
-                                    className: "mb-4",
-                                    children: "I'm a student at the University of Maryland, passionate about leveraging AI and software engineering to create innovative solutions. My journey in tech is driven by a curiosity to explore the boundless possibilities of machine learning and entrepreneurship."
-                                }),
-                                /*#__PURE__*/ jsx_runtime_.jsx("p", {
-                                    className: "mb-4",
-                                    children: "Currently, I'm honing my skills as a Software Engineering Intern at Halvik, focusing on Generative AI applications."
-                                }),
-                                /*#__PURE__*/ jsx_runtime_.jsx("p", {
-                                    children: "When I'm not coding, you can find me weightlifting, playing basketball, experimenting with new recipes in the kitchen, or spending time with my dog. I'm always looking to learn new technologies and improve my skills."
-                                })
-                            ]
-                        })
-                    ]
-                })
-            ]
-        })
-    });
-}
-
+/* harmony default export */ const intro = (intro_default_);
 ;// CONCATENATED MODULE: ./components/projects.tsx
 
 const projects_proxy = (0,module_proxy.createProxy)(String.raw`/workspaces/akhil-personal-portfolio/components/projects.tsx`)
@@ -1814,9 +1986,9 @@ function Home() {
     return /*#__PURE__*/ (0,jsx_runtime_.jsxs)("main", {
         className: "flex flex-col items-center px-4",
         children: [
-            /*#__PURE__*/ jsx_runtime_.jsx(intro_About, {}),
+            /*#__PURE__*/ jsx_runtime_.jsx(intro, {}),
             /*#__PURE__*/ jsx_runtime_.jsx(section_divider, {}),
-            /*#__PURE__*/ jsx_runtime_.jsx(About, {}),
+            /*#__PURE__*/ jsx_runtime_.jsx(about, {}),
             /*#__PURE__*/ jsx_runtime_.jsx(projects, {}),
             /*#__PURE__*/ jsx_runtime_.jsx(skills, {}),
             /*#__PURE__*/ jsx_runtime_.jsx(experience, {}),
@@ -1955,7 +2127,7 @@ __webpack_require__.r(__webpack_exports__);
 var __webpack_require__ = require("../webpack-runtime.js");
 __webpack_require__.C(exports);
 var __webpack_exec__ = (moduleId) => (__webpack_require__(__webpack_require__.s = moduleId))
-var __webpack_exports__ = __webpack_require__.X(0, [763,520], () => (__webpack_exec__(5051)));
+var __webpack_exports__ = __webpack_require__.X(0, [763,274], () => (__webpack_exec__(5051)));
 module.exports = __webpack_exports__;
 
 })();
