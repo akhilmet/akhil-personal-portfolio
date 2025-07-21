@@ -1,30 +1,35 @@
 ```
-# Cell 7 (Updated): Random Forest Training with Progress & Error Handling
+# Cell 8 (Updated): XGBoost Training with Progress & Error Handling
 from sklearn.model_selection import ParameterGrid, cross_val_score
-from sklearn.ensemble import RandomForestRegressor
+from xgboost import XGBRegressor
 import time
 
-# Define your RF grid
-rf_params = {
-    'n_estimators': [100, 200, 300],
-    'max_depth': [10, 15, 20, None],
-    'min_samples_split': [2, 5, 10],
-    'min_samples_leaf': [1, 2, 4],
-    'max_features': ['sqrt', 'log2', None]
+# 1️⃣ Define the full XGB grid
+xgb_params = {
+    'n_estimators':    [100, 200, 300],
+    'max_depth':       [3, 6, 9],
+    'learning_rate':   [0.01, 0.1, 0.2],
+    'subsample':       [0.8, 0.9, 1.0],
+    'colsample_bytree':[0.8, 0.9, 1.0]
 }
 
-param_list = list(ParameterGrid(rf_params))
+param_list = list(ParameterGrid(xgb_params))
 results = []
 
-print(f"🔍 Starting RF grid search over {len(param_list)} parameter combinations...")
+print(f"🚀 Starting XGBoost grid search over {len(param_list)} combinations...")
 t_start_all = time.time()
 
-for i, params in enumerate(param_list, start=1):
-    print(f"\n▶️  [{i}/{len(param_list)}] Testing params: {params}")
+for idx, params in enumerate(param_list, start=1):
+    print(f"\n▶️  [{idx}/{len(param_list)}] Testing params: {params}")
     t0 = time.time()
     try:
-        model = RandomForestRegressor(**params, random_state=42, n_jobs=-1)
-        # 5-fold CV, neg_mean_absolute_error → flip sign
+        model = XGBRegressor(
+            objective='reg:squarederror',
+            random_state=42,
+            n_jobs=-1,
+            **params
+        )
+        # 5-fold CV, neg_mean_absolute_error → positive MAE
         scores = -cross_val_score(
             model,
             X_train, y_train,
@@ -39,21 +44,27 @@ for i, params in enumerate(param_list, start=1):
         print(f"   ❌ Error with these params: {e}")
         results.append({'params': params, 'mae': None, 'error': str(e)})
 
-    elapsed = time.time() - t0
-    total_elapsed = time.time() - t_start_all
-    remaining = total_elapsed / i * (len(param_list) - i)
-    print(f"   ⏱ Elapsed this iter: {elapsed:.1f}s — Est. remaining: {remaining/60:.1f}min")
+    #  Estimate time remaining
+    elapsed    = time.time() - t0
+    total_time = time.time() - t_start_all
+    remaining  = total_time / idx * (len(param_list) - idx)
+    print(f"   ⏱ This iter: {elapsed:.1f}s — Est. remaining: {remaining/60:.1f}min")
 
-# Filter out any errors
+# 2️⃣ Filter out failed runs, pick best
 valid = [r for r in results if r['mae'] is not None]
-best = min(valid, key=lambda x: x['mae'])
-print(f"\n🏆 Best params: {best['params']} → MAE: {best['mae']:.2f} tokens")
+best_entry = min(valid, key=lambda x: x['mae'])
+print(f"\n🏆 Best XGBoost params: {best_entry['params']} → MAE: {best_entry['mae']:.2f} tokens")
 
-# Refit best model on full training set
-best_rf = RandomForestRegressor(**best['params'], random_state=42, n_jobs=-1)
-print("🔧 Refitting best model on full training data…")
-best_rf.fit(X_train, y_train)
-print("✅ Refitting complete!")
+# 3️⃣ Refit best model on full training set
+best_xgb = XGBRegressor(
+    objective='reg:squarederror',
+    random_state=42,
+    n_jobs=-1,
+    **best_entry['params']
+)
+print("🔧 Refitting best XGBoost on full training data…")
+best_xgb.fit(X_train, y_train)
+print("✅ XGBoost refit complete!")
 
 ```
 
