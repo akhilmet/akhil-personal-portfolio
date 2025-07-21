@@ -1,10 +1,13 @@
 ```
-# Cell 8 (Updated): XGBoost Training with Progress & Error Handling
+# Cell 8 (Final): XGBoost Training with a Single Progress Bar
+!pip install --quiet tqdm
+
+from tqdm.auto import tqdm
 from sklearn.model_selection import ParameterGrid, cross_val_score
 from xgboost import XGBRegressor
 import time
 
-# 1️⃣ Define the full XGB grid
+# 1️⃣ Define the full XGB grid (same as before)
 xgb_params = {
     'n_estimators':    [100, 200, 300],
     'max_depth':       [3, 6, 9],
@@ -14,14 +17,13 @@ xgb_params = {
 }
 
 param_list = list(ParameterGrid(xgb_params))
-results = []
+results    = []
 
-print(f"🚀 Starting XGBoost grid search over {len(param_list)} combinations...")
-t_start_all = time.time()
+print(f"🚀 Running XGBoost grid search over {len(param_list)} combos…")
+t0 = time.time()
 
-for idx, params in enumerate(param_list, start=1):
-    print(f"\n▶️  [{idx}/{len(param_list)}] Testing params: {params}")
-    t0 = time.time()
+# 2️⃣ Wrap the loop in tqdm for a single progress line
+for params in tqdm(param_list, desc="XGB grid", unit="combo"):
     try:
         model = XGBRegressor(
             objective='reg:squarederror',
@@ -29,33 +31,23 @@ for idx, params in enumerate(param_list, start=1):
             n_jobs=-1,
             **params
         )
-        # 5-fold CV, neg_mean_absolute_error → positive MAE
+        # 5‐fold CV with neg MAE
         scores = -cross_val_score(
-            model,
-            X_train, y_train,
+            model, X_train, y_train,
             cv=5,
             scoring='neg_mean_absolute_error',
             n_jobs=-1
         )
-        mae = scores.mean()
-        print(f"   ✔️  CV MAE: {mae:.2f} tokens    (folds: {', '.join(f'{s:.2f}' for s in scores)})")
-        results.append({'params': params, 'mae': mae})
+        results.append({'params': params, 'mae': scores.mean()})
     except Exception as e:
-        print(f"   ❌ Error with these params: {e}")
         results.append({'params': params, 'mae': None, 'error': str(e)})
 
-    #  Estimate time remaining
-    elapsed    = time.time() - t0
-    total_time = time.time() - t_start_all
-    remaining  = total_time / idx * (len(param_list) - idx)
-    print(f"   ⏱ This iter: {elapsed:.1f}s — Est. remaining: {remaining/60:.1f}min")
-
-# 2️⃣ Filter out failed runs, pick best
-valid = [r for r in results if r['mae'] is not None]
+print(f"⏱ Total grid time: {(time.time()-t0)/60:.1f} min")
+# 3️⃣ Pick best, refit, etc.
+valid      = [r for r in results if r['mae'] is not None]
 best_entry = min(valid, key=lambda x: x['mae'])
-print(f"\n🏆 Best XGBoost params: {best_entry['params']} → MAE: {best_entry['mae']:.2f} tokens")
+print(f"🏆 Best XGB params: {best_entry['params']} → MAE: {best_entry['mae']:.2f} tokens")
 
-# 3️⃣ Refit best model on full training set
 best_xgb = XGBRegressor(
     objective='reg:squarederror',
     random_state=42,
@@ -65,6 +57,7 @@ best_xgb = XGBRegressor(
 print("🔧 Refitting best XGBoost on full training data…")
 best_xgb.fit(X_train, y_train)
 print("✅ XGBoost refit complete!")
+
 
 ```
 
