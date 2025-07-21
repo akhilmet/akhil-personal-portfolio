@@ -1,46 +1,120 @@
 ```
-# Cell 2: Data Loading and Exploration
-import os
-import glob
-import pandas as pd
-
-def load_and_explore_data():
-    # 1. Print current working directory
-    cwd = os.getcwd()
-    print(f"CWD: {cwd}")
+# Cell 3: Basic Data Analysis
+# Explore the data structure
+if df is not None:
+    print("📊 Dataset Analysis:")
+    print(f"   Total samples: {len(df):,}")
     
-    # 2. Build the path to your data folder
-    base_dir = os.path.join(
-        cwd,
-        "query-routing-systems-datasets",
-        "Magpie-Llama-3.1-Pro-DPO-100k-v0.1",
-        "data"
-    )
-    if not os.path.isdir(base_dir):
-        raise FileNotFoundError(f"❌ Data directory not found:\n  {base_dir}")
+    # The dataset has 'instruction' and 'responses' columns
+    print(f"   Available columns: {list(df.columns)}")
     
-    # 3. Find all parquet files in that folder
-    parquet_files = glob.glob(os.path.join(base_dir, "*.parquet"))
-    if not parquet_files:
-        raise FileNotFoundError(f"❌ No .parquet files found in:\n  {base_dir}")
+    # Extract the actual response text from the responses column
+    # The 'responses' column appears to contain structured data
+    def extract_response_text(responses_data):
+        """Extract actual response text from responses column"""
+        if pd.isna(responses_data):
+            return ""
+        
+        # If it's already a string, return it
+        if isinstance(responses_data, str):
+            return responses_data
+        
+        # If it's a list or dict structure, extract the text
+        try:
+            if isinstance(responses_data, list) and len(responses_data) > 0:
+                # Take the first response if multiple
+                response = responses_data[0]
+                if isinstance(response, dict):
+                    # Look for common text fields
+                    for key in ['text', 'content', 'value', 'response']:
+                        if key in response:
+                            return str(response[key])
+                elif isinstance(response, str):
+                    return response
+            elif isinstance(responses_data, dict):
+                # Look for common text fields in dict
+                for key in ['text', 'content', 'value', 'response']:
+                    if key in responses_data:
+                        return str(responses_data[key])
+            
+            # If all else fails, convert to string
+            return str(responses_data)
+        except:
+            return str(responses_data)
     
-    # 4. Load & concatenate
-    df_list = [pd.read_parquet(fp) for fp in parquet_files]
-    df = pd.concat(df_list, ignore_index=True)
+    # Apply extraction to create clean response column
+    print("🔧 Extracting response text from responses column...")
+    df['response'] = df['responses'].apply(extract_response_text)
     
-    # 5. Print summary
-    print(f"✅ Loaded {len(parquet_files)} files → {df.shape[0]} rows × {df.shape[1]} columns")
-    print("Columns:", df.columns.tolist())
-    missing = df.isnull().sum()
-    if missing.any():
-        print("⚠️ Missing values:\n", missing[missing > 0])
+    # Check if extraction worked
+    sample_response = df['response'].iloc[0]
+    print(f"📝 Sample extracted response (first 100 chars): {sample_response[:100]}...")
     
-    # 6. Show a preview
-    display(df.head(3))
-    return df
-
-# run it!
-df = load_and_explore_data()
+    # Calculate text statistics
+    df['instruction_len'] = df['instruction'].astype(str).str.len()
+    df['response_len'] = df['response'].astype(str).str.len()
+    df['response_words'] = df['response'].astype(str).str.split().str.len()
+    
+    # Clean up any NaN values that might have been created
+    df['response_words'] = df['response_words'].fillna(0)
+    
+    print(f"\n📝 Text Statistics:")
+    print(f"   Instruction length - Mean: {df['instruction_len'].mean():.0f}, Max: {df['instruction_len'].max()}")
+    print(f"   Response length - Mean: {df['response_len'].mean():.0f}, Max: {df['response_len'].max()}")
+    print(f"   Response words - Mean: {df['response_words'].mean():.0f}, Max: {df['response_words'].max()}")
+    
+    # Show available metadata features
+    metadata_cols = [col for col in df.columns if col not in ['instruction', 'responses', 'response']]
+    print(f"\n🏷️ Available metadata features ({len(metadata_cols)}):")
+    for col in metadata_cols[:10]:  # Show first 10
+        unique_vals = df[col].nunique()
+        print(f"   - {col}: {unique_vals} unique values ({df[col].dtype})")
+    if len(metadata_cols) > 10:
+        print(f"   ... and {len(metadata_cols) - 10} more")
+    
+    # Distribution plots
+    fig, axes = plt.subplots(1, 2, figsize=(15, 5))
+    
+    # Response word count distribution
+    axes[0].hist(df['response_words'], bins=50, alpha=0.7, edgecolor='black')
+    axes[0].set_xlabel('Response Word Count')
+    axes[0].set_ylabel('Frequency')
+    axes[0].set_title('Distribution of Response Lengths (Words)')
+    axes[0].axvline(df['response_words'].mean(), color='red', linestyle='--', 
+                   label=f'Mean: {df["response_words"].mean():.0f}')
+    axes[0].legend()
+    
+    # Instruction vs Response length relationship
+    sample_size = min(5000, len(df))
+    sample_df = df.sample(n=sample_size, random_state=42)
+    axes[1].scatter(sample_df['instruction_len'], sample_df['response_words'], alpha=0.5)
+    axes[1].set_xlabel('Instruction Length (chars)')
+    axes[1].set_ylabel('Response Length (words)')
+    axes[1].set_title('Instruction vs Response Length Relationship')
+    
+    plt.tight_layout()
+    plt.show()
+    
+    # Analyze metadata features for modeling
+    print(f"\n🎯 Metadata Features for Enhanced Modeling:")
+    
+    # Check specific useful columns
+    useful_metadata = []
+    for col in ['difficulty', 'intent', 'knowledge', 'task_category', 'input_quality', 'quality_explanation']:
+        if col in df.columns:
+            useful_metadata.append(col)
+            unique_count = df[col].nunique()
+            print(f"   ✅ {col}: {unique_count} categories")
+            if unique_count < 20:  # Show categories if not too many
+                print(f"      Categories: {list(df[col].value_counts().head().index)}")
+    
+    if useful_metadata:
+        print(f"\n🚀 Found {len(useful_metadata)} useful metadata features for enhanced modeling!")
+    else:
+        print(f"\n📝 Will use extracted text features for modeling.")
+    
+    print(f"\n✅ Data exploration complete. Ready for feature engineering!")
+```
 
 ```
 # Cell 1: Setup and Imports
