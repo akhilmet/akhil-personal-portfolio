@@ -1,3 +1,52 @@
+```
+# Cell 2: Data Loading and Exploration
+def load_and_explore_data():
+   """Load the Magpie dataset and perform initial exploration"""
+   
+   # Load the dataset from the Magpie parquet files
+   try:
+       # Load from the Magpie dataset directory
+       df = pd.read_parquet('Magpie-Llama-3.1-Pro-DPO-100k-v0.1/data/train-00000-of-00001.parquet')
+       print(f"✅ Loaded Magpie dataset with {len(df):,} rows")
+   except:
+       try:
+           # Alternative path structure
+           df = pd.read_parquet('data/train-00000-of-00001.parquet')
+           print(f"✅ Loaded dataset with {len(df):,} rows")
+       except:
+           try:
+               # Try loading multiple parquet files if split
+               import glob
+               parquet_files = glob.glob('Magpie-Llama-3.1-Pro-DPO-100k-v0.1/data/*.parquet')
+               if parquet_files:
+                   df_list = [pd.read_parquet(file) for file in parquet_files]
+                   df = pd.concat(df_list, ignore_index=True)
+                   print(f"✅ Loaded {len(parquet_files)} parquet files with {len(df):,} total rows")
+               else:
+                   raise FileNotFoundError("No parquet files found")
+           except:
+               print("⚠️ Could not load Magpie dataset.")
+               print("Please check that the Magpie-Llama-3.1-Pro-DPO-100k-v0.1 directory exists.")
+               return None
+   
+   # Basic info
+   print(f"📊 Dataset shape: {df.shape}")
+   print(f"📋 Columns: {list(df.columns)}")
+   
+   # Check for missing values
+   missing = df.isnull().sum()
+   if missing.any():
+       print(f"\n⚠️ Missing values:\n{missing[missing > 0]}")
+   
+   # Sample data preview
+   print(f"\n🔍 Sample data:")
+   display(df.head(3))
+   
+   return df
+
+# Load data
+df = load_and_explore_data()
+```
 # Cell 1: Setup and Imports
 ```python
 # Token Predictor with Magpie Dataset
