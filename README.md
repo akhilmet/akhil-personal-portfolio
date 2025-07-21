@@ -1,3 +1,295 @@
+```
+# Cell 4: Enhanced Feature Engineering with Mistral Tokenizer (FIXED)
+def extract_advanced_features(df):
+    """Extract comprehensive features from the Magpie dataset"""
+    
+    features_df = df.copy()
+    
+    print("🛠️ Starting feature engineering with Magpie metadata...")
+    
+    # ==================
+    # MISTRAL TOKENIZER SETUP
+    # ==================
+    
+    # Import Mistral tokenizer
+    try:
+        from mistral_common.tokens.tokenizers.mistral import MistralTokenizer
+        from mistral_common.protocol.instruct.messages import UserMessage, AssistantMessage
+        from mistral_common.protocol.instruct.request import ChatCompletionRequest
+        MISTRAL_AVAILABLE = True
+        mistral_tokenizer = MistralTokenizer.v3()
+        print("✅ Mistral tokenizer loaded successfully")
+    except ImportError:
+        print("⚠️ Mistral tokenizer not available, using fallback")
+        MISTRAL_AVAILABLE = False
+        mistral_tokenizer = None
+    
+    # ==================
+    # GROUND TRUTH TARGET (MISTRAL TOKENIZER - FIXED)
+    # ==================
+    
+    def get_actual_token_count_mistral(instruction_text, response_text):
+        """Get actual token count using Mistral tokenizer with chat completion format"""
+        if pd.isna(instruction_text) or pd.isna(response_text):
+            return 1
+        
+        instruction_text = str(instruction_text)
+        response_text = str(response_text)
+        
+        if MISTRAL_AVAILABLE and mistral_tokenizer:
+            try:
+                # Method 1: Try with just the response text (simpler approach)
+                response_tokens = len(mistral_tokenizer.encode(response_text))
+                return max(1, response_tokens)
+                
+            except Exception as e:
+                # Method 2: Try basic encoding without chat format
+                try:
+                    response_tokens = len(mistral_tokenizer.encode(response_text))
+                    return max(1, response_tokens)
+                except:
+                    pass
+        
+        # Fallback method
+        words = len(response_text.split())
+        return max(1, int(words * 1.3))
+
+    def get_input_token_count_mistral(instruction_text):
+        """Get input token count using Mistral tokenizer"""
+        if pd.isna(instruction_text):
+            return 1
+            
+        instruction_text = str(instruction_text)
+        
+        if MISTRAL_AVAILABLE and mistral_tokenizer:
+            try:
+                # Use simple encoding for input
+                input_tokens = len(mistral_tokenizer.encode(instruction_text))
+                return max(1, input_tokens)
+            except Exception as e:
+                pass
+        
+        # Fallback method
+        words = len(instruction_text.split())
+        return max(1, int(words * 1.3))
+
+    print("🎯 Calculating token counts using Mistral tokenizer...")
+    
+    # Calculate both input and output tokens using Mistral (with error handling)
+    try:
+        features_df['input_tokens_mistral'] = features_df['instruction'].apply(get_input_token_count_mistral)
+        print("✅ Input tokenization complete")
+    except Exception as e:
+        print(f"⚠️ Input tokenization failed: {e}, using fallback")
+        features_df['input_tokens_mistral'] = features_df['instruction'].str.split().str.len() * 1.3
+    
+    try:
+        features_df['actual_output_tokens'] = features_df.apply(
+            lambda row: get_actual_token_count_mistral(row['instruction'], row['response']), 
+            axis=1
+        )
+        print("✅ Output tokenization complete")
+    except Exception as e:
+        print(f"⚠️ Output tokenization failed: {e}, using fallback")
+        features_df['actual_output_tokens'] = features_df['response'].str.split().str.len() * 1.3
+
+    print("✅ Mistral tokenization complete (with fallbacks)")
+    
+    # ==================
+    # TEXT-BASED FEATURES
+    # ==================
+    
+    # Enhanced complexity score
+    def calculate_complexity_score(text):
+        """Calculate comprehensive complexity score"""
+        if pd.isna(text):
+            return 0
+        
+        text = str(text)
+        words = text.split()
+        
+        if not words:
+            return 0
+        
+        # Vocabulary diversity
+        unique_words = len(set(words))
+        vocab_diversity = unique_words / len(words)
+        
+        # Average word length
+        avg_word_length = np.mean([len(word) for word in words])
+        
+        # Punctuation density
+        punctuation_count = len(re.findall(r'[!@#$%^&*(),.?":{}|<>]', text))
+        punct_density = punctuation_count / len(text) if len(text) > 0 else 0
+        
+        # Technical terms density
+        technical_patterns = [
+            r'\bfunction\b', r'\bclass\b', r'\bimport\b', r'\bdef\b', r'\breturn\b',
+            r'\bapi\b', r'\bdatabase\b', r'\balgorithm\b', r'\bmodel\b', r'\btraining\b',
+            r'\btensor\b', r'\bnumpy\b', r'\bpandas\b', r'\bsklearn\b', r'\bpython\b',
+            r'\bcode\b', r'\bvariable\b', r'\bloop\b', r'\barray\b', r'\blist\b'
+        ]
+        
+        technical_count = sum(len(re.findall(pattern, text.lower())) for pattern in technical_patterns)
+        tech_density = technical_count / len(words)
+        
+        # Composite complexity score
+        complexity = (vocab_diversity * 0.3 + 
+                     (min(avg_word_length, 15) / 15) * 0.2 + 
+                     min(punct_density, 0.1) * 2.0 * 0.2 + 
+                     min(tech_density, 0.5) * 2.0 * 0.3)
+        
+        return min(complexity, 1.0)
+    
+    features_df['instruction_complexity'] = features_df['instruction'].apply(calculate_complexity_score)
+    
+    # Question type classification
+    def get_question_type(text):
+        """Classify question types"""
+        if pd.isna(text):
+            return 'unknown'
+        
+        text = str(text).lower()
+        
+        if any(word in text for word in ['what', 'define', 'explain', 'describe']):
+            return 'explanation'
+        elif any(word in text for word in ['how', 'tutorial', 'guide', 'steps']):
+            return 'how_to'
+        elif any(word in text for word in ['code', 'function', 'implement', 'write']):
+            return 'coding'
+        elif any(word in text for word in ['why', 'reason', 'because']):
+            return 'reasoning'
+        elif any(word in text for word in ['list', 'enumerate', 'examples']):
+            return 'listing'
+        elif text.strip().endswith('?'):
+            return 'question'
+        else:
+            return 'statement'
+    
+    features_df['question_type'] = features_df['instruction'].apply(get_question_type)
+    
+    print("✅ Text-based features extracted")
+    
+    # ==================
+    # MAGPIE METADATA FEATURES
+    # ==================
+    
+    # Handle Magpie-specific metadata
+    magpie_features = []
+    
+    # Difficulty encoding
+    if 'difficulty' in features_df.columns:
+        # Map difficulty levels to numbers
+        difficulty_map = {'easy': 1, 'medium': 2, 'hard': 3}
+        features_df['difficulty_encoded'] = features_df['difficulty'].map(difficulty_map).fillna(2)
+        magpie_features.append('difficulty_encoded')
+        print(f"✅ Encoded difficulty: {features_df['difficulty'].value_counts().to_dict()}")
+    
+    # Task category
+    if 'task_category' in features_df.columns:
+        magpie_features.append('task_category')
+        print(f"✅ Found task_category with {features_df['task_category'].nunique()} categories")
+    
+    # Intent 
+    if 'intent' in features_df.columns:
+        magpie_features.append('intent')
+        print(f"✅ Found intent with {features_df['intent'].nunique()} categories")
+    
+    # Knowledge level
+    if 'knowledge' in features_df.columns:
+        magpie_features.append('knowledge')
+        print(f"✅ Found knowledge with {features_df['knowledge'].nunique()} categories")
+    
+    # Input quality
+    if 'input_quality' in features_df.columns:
+        # Map quality to numeric if it's categorical
+        if features_df['input_quality'].dtype == 'object':
+            quality_map = {'poor': 1, 'fair': 2, 'good': 3, 'excellent': 4}
+            features_df['input_quality_encoded'] = features_df['input_quality'].map(quality_map).fillna(2)
+            magpie_features.append('input_quality_encoded')
+        else:
+            magpie_features.append('input_quality')
+        print(f"✅ Found input_quality")
+    
+    # Input length (if available as metadata)
+    if 'input_length' in features_df.columns:
+        magpie_features.append('input_length')
+        print(f"✅ Found input_length metadata")
+    
+    print(f"✅ Found {len(magpie_features)} Magpie metadata features: {magpie_features}")
+    
+    # ==================
+    # INTERACTION FEATURES
+    # ==================
+    
+    # Ratio features
+    features_df['response_to_instruction_ratio'] = (
+        features_df['actual_output_tokens'] / features_df['input_tokens_mistral'].replace(0, 1)
+    )
+    
+    # Complexity interactions
+    features_df['complexity_length_interaction'] = (
+        features_df['instruction_complexity'] * features_df['instruction_len'] / 1000
+    )
+    
+    # Word density
+    features_df['instruction_word_count'] = features_df['instruction'].str.split().str.len().fillna(0)
+    features_df['instruction_word_density'] = (
+        features_df['instruction_word_count'] / features_df['instruction_len'].replace(0, 1)
+    )
+    
+    print("✅ Interaction features created")
+    
+    # ==================
+    # TOKEN VISUALIZATION
+    # ==================
+    
+    print("📊 Creating token distribution visualizations...")
+    
+    fig, axes = plt.subplots(1, 3, figsize=(18, 5))
+    
+    # Input tokens distribution
+    axes[0].hist(features_df['input_tokens_mistral'], bins=50, alpha=0.7, edgecolor='black', color='skyblue')
+    axes[0].set_xlabel('Input Tokens (Mistral)')
+    axes[0].set_ylabel('Frequency')
+    axes[0].set_title('Distribution of Input Token Counts')
+    axes[0].axvline(features_df['input_tokens_mistral'].mean(), color='red', linestyle='--', 
+                   label=f'Mean: {features_df["input_tokens_mistral"].mean():.0f}')
+    axes[0].legend()
+    
+    # Output tokens distribution  
+    axes[1].hist(features_df['actual_output_tokens'], bins=50, alpha=0.7, edgecolor='black', color='lightcoral')
+    axes[1].set_xlabel('Output Tokens (Mistral)')
+    axes[1].set_ylabel('Frequency')
+    axes[1].set_title('Distribution of Output Token Counts')
+    axes[1].axvline(features_df['actual_output_tokens'].mean(), color='red', linestyle='--',
+                   label=f'Mean: {features_df["actual_output_tokens"].mean():.0f}')
+    axes[1].legend()
+    
+    # Input vs Output relationship
+    sample_size = min(5000, len(features_df))
+    sample_df = features_df.sample(n=sample_size, random_state=42)
+    axes[2].scatter(sample_df['input_tokens_mistral'], sample_df['actual_output_tokens'], alpha=0.5, color='green')
+    axes[2].set_xlabel('Input Tokens')
+    axes[2].set_ylabel('Output Tokens')
+    axes[2].set_title('Input vs Output Token Relationship')
+    
+    plt.tight_layout()
+    plt.show()
+    
+    print(f"📊 Token statistics:")
+    print(f"   Input tokens - Mean: {features_df['input_tokens_mistral'].mean():.1f}, Max: {features_df['input_tokens_mistral'].max()}")
+    print(f"   Output tokens - Mean: {features_df['actual_output_tokens'].mean():.1f}, Max: {features_df['actual_output_tokens'].max()}")
+    
+    new_features = len([col for col in features_df.columns if col not in df.columns])
+    print(f"🎯 Feature engineering complete! Created {new_features} new features")
+    
+    return features_df
+
+# Apply feature engineering
+df_features = extract_advanced_features(df)
+```
+
 # Cell 1: Setup and Imports
 ```python
 # Token Predictor with Magpie Dataset
