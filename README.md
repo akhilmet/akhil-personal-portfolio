@@ -1,51 +1,47 @@
 ```
 # Cell 2: Data Loading and Exploration
-def load_and_explore_data():
-   """Load the Magpie dataset and perform initial exploration"""
-   
-   # Load the dataset from the Magpie parquet files
-   try:
-       # Load from the Magpie dataset directory
-       df = pd.read_parquet('Magpie-Llama-3.1-Pro-DPO-100k-v0.1/data/train-00000-of-00001.parquet')
-       print(f"✅ Loaded Magpie dataset with {len(df):,} rows")
-   except:
-       try:
-           # Alternative path structure
-           df = pd.read_parquet('data/train-00000-of-00001.parquet')
-           print(f"✅ Loaded dataset with {len(df):,} rows")
-       except:
-           try:
-               # Try loading multiple parquet files if split
-               import glob
-               parquet_files = glob.glob('Magpie-Llama-3.1-Pro-DPO-100k-v0.1/data/*.parquet')
-               if parquet_files:
-                   df_list = [pd.read_parquet(file) for file in parquet_files]
-                   df = pd.concat(df_list, ignore_index=True)
-                   print(f"✅ Loaded {len(parquet_files)} parquet files with {len(df):,} total rows")
-               else:
-                   raise FileNotFoundError("No parquet files found")
-           except:
-               print("⚠️ Could not load Magpie dataset.")
-               print("Please check that the Magpie-Llama-3.1-Pro-DPO-100k-v0.1 directory exists.")
-               return None
-   
-   # Basic info
-   print(f"📊 Dataset shape: {df.shape}")
-   print(f"📋 Columns: {list(df.columns)}")
-   
-   # Check for missing values
-   missing = df.isnull().sum()
-   if missing.any():
-       print(f"\n⚠️ Missing values:\n{missing[missing > 0]}")
-   
-   # Sample data preview
-   print(f"\n🔍 Sample data:")
-   display(df.head(3))
-   
-   return df
+import os
+import glob
+import pandas as pd
 
-# Load data
+def load_and_explore_data():
+    # 1. Print current working directory
+    cwd = os.getcwd()
+    print(f"CWD: {cwd}")
+    
+    # 2. Build the path to your data folder
+    base_dir = os.path.join(
+        cwd,
+        "query-routing-systems-datasets",
+        "Magpie-Llama-3.1-Pro-DPO-100k-v0.1",
+        "data"
+    )
+    if not os.path.isdir(base_dir):
+        raise FileNotFoundError(f"❌ Data directory not found:\n  {base_dir}")
+    
+    # 3. Find all parquet files in that folder
+    parquet_files = glob.glob(os.path.join(base_dir, "*.parquet"))
+    if not parquet_files:
+        raise FileNotFoundError(f"❌ No .parquet files found in:\n  {base_dir}")
+    
+    # 4. Load & concatenate
+    df_list = [pd.read_parquet(fp) for fp in parquet_files]
+    df = pd.concat(df_list, ignore_index=True)
+    
+    # 5. Print summary
+    print(f"✅ Loaded {len(parquet_files)} files → {df.shape[0]} rows × {df.shape[1]} columns")
+    print("Columns:", df.columns.tolist())
+    missing = df.isnull().sum()
+    if missing.any():
+        print("⚠️ Missing values:\n", missing[missing > 0])
+    
+    # 6. Show a preview
+    display(df.head(3))
+    return df
+
+# run it!
 df = load_and_explore_data()
+
 ```
 # Cell 1: Setup and Imports
 ```python
