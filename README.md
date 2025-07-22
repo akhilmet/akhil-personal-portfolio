@@ -1,3 +1,108 @@
+```
+# Cell 2: Data Loading and Exploration (CORRECTED)
+import os
+import glob
+import pandas as pd
+
+def load_and_explore_data():
+    # 1. Where am I?
+    cwd = os.getcwd()
+    print(f"CWD: {cwd}")
+    
+    # 2. Point at the right folder
+    base_dir = os.path.join(
+        cwd,
+        "query-routing-systems-datasets",
+        "Magpie-Llama-3.1-Pro-DPO-100k-v0.1",
+        "data"
+    )
+    
+    if not os.path.isdir(base_dir):
+        raise FileNotFoundError(f"❌ Data directory not found:\n  {base_dir}")
+    
+    # 3. Gather all .parquet files
+    parquet_files = glob.glob(os.path.join(base_dir, "*.parquet"))
+    if not parquet_files:
+        raise FileNotFoundError(f"❌ No parquet files found in:\n  {base_dir}")
+    
+    # 4. Read each one using pyarrow
+    df_list = []
+    for fp in parquet_files:
+        try:
+            df_part = pd.read_parquet(fp, engine="pyarrow")
+            df_list.append(df_part)
+            print(f"✅ Loaded {fp}: {df_part.shape[0]} rows")
+        except Exception as e:
+            print(f"⚠️ Failed to load {fp}: {e}")
+    
+    df = pd.concat(df_list, ignore_index=True)
+    
+    # 5. Handle the actual Magpie dataset structure
+    print(f"✅ Loaded {len(parquet_files)} files → {df.shape[0]} rows × {df.shape[1]} columns")
+    print("Raw columns:", df.columns.tolist())
+    
+    # 6. Check for actual column structure and fix task_category
+    if 'task_category' in df.columns:
+        print(f"📊 task_category info:")
+        print(f"   Type: {df['task_category'].dtype}")
+        print(f"   Unique values: {df['task_category'].nunique()}")
+        print(f"   Sample values: {df['task_category'].value_counts().head().to_dict()}")
+        
+        # If task_category is numeric, it might be encoded - let's decode it
+        if df['task_category'].dtype in ['int64', 'float64']:
+            print("⚠️ task_category appears to be encoded as numbers")
+            # Create a mapping based on common task categories
+            task_category_map = {
+                0: 'information_seeking',
+                1: 'reasoning', 
+                2: 'planning',
+                3: 'editing',
+                4: 'coding',
+                5: 'math',
+                6: 'role_playing',
+                7: 'data_analysis',
+                8: 'creative_writing',
+                9: 'advice_seeking',
+                10: 'brainstorming',
+                11: 'others'
+            }
+            
+            # Apply mapping if values are in expected range
+            if df['task_category'].min() >= 0 and df['task_category'].max() < len(task_category_map):
+                df['task_category'] = df['task_category'].map(task_category_map)
+                print(f"✅ Decoded task_category: {df['task_category'].value_counts().head().to_dict()}")
+            else:
+                print(f"⚠️ Unexpected task_category values: min={df['task_category'].min()}, max={df['task_category'].max()}")
+    
+    # 7. Handle other categorical columns that might be encoded
+    categorical_mappings = {
+        'difficulty': {0: 'easy', 1: 'medium', 2: 'hard'},
+        'input_quality': {0: 'poor', 1: 'fair', 2: 'good', 3: 'excellent'},
+        'knowledge': {0: 'basic', 1: 'intermediate', 2: 'advanced', 3: 'expert'}
+    }
+    
+    for col, mapping in categorical_mappings.items():
+        if col in df.columns and df[col].dtype in ['int64', 'float64']:
+            print(f"🔄 Decoding {col} from numeric to categorical")
+            df[col] = df[col].map(mapping)
+            print(f"   Result: {df[col].value_counts().to_dict()}")
+    
+    # 8. Check missing values
+    missing = df.isnull().sum()
+    if missing.any():
+        print("⚠️ Missing values:")
+        for col, count in missing[missing > 0].items():
+            print(f"   {col}: {count} ({count/len(df)*100:.1f}%)")
+    
+    # 9. Peek at the data with proper formatting
+    print("\n📋 Dataset preview:")
+    display(df.head(3))
+    
+    return df
+
+# Run it!
+df = load_and_explore_data()
+```
 # Cell 1: Setup and Imports
 ```python
 # Token Predictor with Magpie Dataset - Chris's Feature Specification
