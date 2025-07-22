@@ -1,41 +1,46 @@
 ```
-# Cell 4: Production-Safe Feature Engineering (Mistral-only tokenizer)
+# Cell 4: Feature Engineering - Chris's Specification (MISTRAL ONLY, NO DATA LEAKAGE)
 import pandas as pd
 import numpy as np
 import re
 from mistral_common.tokens.tokenizers.mistral import MistralTokenizer
-from mistral_common.protocol.instruct.messages import UserMessage
-from mistral_common.protocol.instruct.request import ChatCompletionRequest
 
 def extract_chris_features(df):
-    """
-    Feature engineering using ONLY the Mistral tokenizer (no fallbacks).
-    Returns a DataFrame with production-safe features.
-    """
+    """Extract features exactly as specified by Chris using ONLY Mistral tokenizer."""
     features_df = df.copy()
-
-    # ─── 1️⃣ Initialize Mistral tokenizer ────────────────────────────────────────
+    
+    print("🛠️ Starting feature engineering per Chris's specification...")
+    print("🎯 Using ONLY Mistral tokenizer - NO fallbacks")
+    print("🚫 Excluding response_to_instruction_ratio - not available during prediction")
+    
+    # ==================
+    # 1️⃣ MISTRAL TOKENIZER ONLY
+    # ==================
     print("🔥 Loading Mistral tokenizer (open-mixtral-8x7b)…")
-    tokenizer = MistralTokenizer.from_model("open-mixtral-8x7b")
+    hf_tokenizer = MistralTokenizer.from_model("open-mixtral-8x7b")
     print("✅ Mistral tokenizer loaded")
-
-    # ─── 2️⃣ Token counting function ─────────────────────────────────────────────
+    
     def count_tokens_real(text):
+        """Count tokens using ONLY the Mistral tokenizer's encode method."""
         if pd.isna(text) or text == "":
             return 0
-        # Use chat-completion API to get exact token counts
-        req = ChatCompletionRequest(messages=[UserMessage(content=str(text))])
-        tokens = tokenizer.encode_chat_completion(req)
-        return len(tokens.tokens)
-
-    # ─── 3️⃣ Compute token-based features ────────────────────────────────────────
-    print("🎯 Calculating token counts with Mistral tokenizer…")
+        # encode() returns a list of token IDs
+        token_ids = hf_tokenizer.encode(str(text))
+        return len(token_ids)
+    
+    print("🎯 Calculating token counts using ONLY Mistral tokenizer…")
     features_df['input_tokens_mistral'] = features_df['instruction'].apply(count_tokens_real)
     features_df['actual_output_tokens'] = features_df['response'].apply(count_tokens_real)
-    print("✅ Token counts complete")
-
-    # ─── 4️⃣ Basic text metrics ─────────────────────────────────────────────────
-    features_df['instruction_len']        = features_df['instruction'].astype(str).str.len().fillna(0).astype(int)
+    print("✅ Mistral tokenization complete")
+    
+    # ==================
+    # 2️⃣–🔟 CHRIS'S PRODUCTION-SAFE FEATURE SET
+    # ==================
+    # 2. instruction_len
+    features_df['instruction_len'] = features_df['instruction'].astype(str).str.len().fillna(0).astype(int)
+    print("✅ Feature 2: instruction_len")
+    
+    # 3. instruction_word_count
     features_df['instruction_word_count'] = (
         features_df['instruction']
         .astype(str)
@@ -44,9 +49,9 @@ def extract_chris_features(df):
         .fillna(0)
         .astype(int)
     )
-    print("✅ Features 1–2: instruction_len, instruction_word_count")
-
-    # ─── 5️⃣ Instruction complexity score ───────────────────────────────────────
+    print("✅ Feature 3: instruction_word_count")
+    
+    # 4. instruction_complexity
     def calculate_complexity_score(text):
         if pd.isna(text) or text == "":
             return 0.0
@@ -54,14 +59,9 @@ def extract_chris_features(df):
         words = txt.split()
         if not words:
             return 0.0
-        # vocabulary diversity
         vocab_div = len(set(words)) / len(words)
-        # average word length
-        avg_len = np.mean([len(w) for w in words])
-        # punctuation density
-        punct_count = len(re.findall(r'[!\"#$%&\'()*+,-./:;<=>?@[\\\]^_`{|}~]', txt))
-        punct_den = punct_count / len(txt)
-        # simple technical term detection
+        avg_len   = np.mean([len(w) for w in words])
+        punct_den = len(re.findall(r'[!\"#$%&\'()*+,-./:;<=>?@\[\]^_`{|}~]', txt)) / len(txt)
         tech_patterns = [r'\bdef\b', r'\bclass\b', r'\bimport\b', r'\breturn\b', r'\bmodel\b']
         tech_den = sum(len(re.findall(p, txt.lower())) for p in tech_patterns) / len(words)
         score = (
@@ -71,109 +71,139 @@ def extract_chris_features(df):
             + min(tech_den, 0.5) * 2 * 0.3
         )
         return min(score, 1.0)
-
     features_df['instruction_complexity'] = features_df['instruction'].apply(calculate_complexity_score)
-    print("✅ Feature 3: instruction_complexity")
-
-    # ─── 6️⃣ Question type ───────────────────────────────────────────────────────
+    print("✅ Feature 4: instruction_complexity")
+    
+    # 5. question_type
     def get_question_type(text):
         if pd.isna(text) or text == "":
             return 'unknown'
-        t = text.lower().strip()
-        if any(k in t for k in ['what', 'define', 'explain', 'describe']):
+        t = text.lower()
+        if any(k in t for k in ['what','define','explain','describe']):
             return 'explanation'
-        if any(k in t for k in ['how', 'tutorial', 'guide', 'steps']):
+        if any(k in t for k in ['how','tutorial','guide','steps']):
             return 'how_to'
-        if any(k in t for k in ['code', 'function', 'implement', 'write']):
+        if any(k in t for k in ['code','function','implement','write']):
             return 'coding'
-        if any(k in t for k in ['why', 'because', 'reason']):
+        if any(k in t for k in ['debug','fix','error','problem']):
+            return 'debugging'
+        if any(k in t for k in ['why','reason','because']):
             return 'reasoning'
-        if any(k in t for k in ['list', 'enumerate', 'examples']):
+        if any(k in t for k in ['list','enumerate','examples']):
             return 'listing'
-        if t.endswith('?'):
+        if t.strip().endswith('?'):
             return 'question'
         return 'statement'
-
     features_df['question_type'] = features_df['instruction'].apply(get_question_type)
-    print("✅ Feature 4: question_type")
-
-    # ─── 7️⃣ Difficulty encoding ─────────────────────────────────────────────────
-    diff_map = {'easy': 1, 'medium': 2, 'hard': 3}
-    features_df['difficulty_encoded'] = (
-        features_df['difficulty']
-        .map(diff_map)
-        .fillna(2)
-        .astype(int)
-    )
-    print("✅ Feature 5: difficulty_encoded")
-
-    # ─── 8️⃣ Task category ───────────────────────────────────────────────────────
+    print("✅ Feature 5: question_type")
+    
+    # 6. difficulty_encoded
+    if 'difficulty' in features_df.columns:
+        diff_map = {'easy':1,'medium':2,'hard':3}
+        features_df['difficulty_encoded'] = features_df['difficulty'].map(diff_map).fillna(2).astype(int)
+        print("✅ Feature 6: difficulty_encoded from dataset")
+    else:
+        features_df['difficulty_encoded'] = pd.cut(
+            features_df['instruction_complexity'],
+            bins=[0,0.3,0.6,1.0],
+            labels=[1,2,3]
+        ).astype(int)
+        print("✅ Feature 6: difficulty_encoded from complexity")
+    
+    # 7. task_category
     features_df['task_category'] = features_df['task_category'].fillna('information_seeking')
-    print("✅ Feature 6: task_category")
-
-    # ─── 9️⃣ Intent ─────────────────────────────────────────────────────────────
-    features_df['intent'] = features_df['intent'].fillna('informational')
-    print("✅ Feature 7: intent")
-
-    # ─── 🔟 Knowledge ────────────────────────────────────────────────────────────
-    features_df['knowledge'] = features_df['knowledge'].fillna('intermediate')
-    print("✅ Feature 8: knowledge")
-
-    # ─── ⓫ Input quality encoding ───────────────────────────────────────────────
-    qual_map = {'poor': 1, 'fair': 2, 'good': 3, 'excellent': 4}
-    features_df['input_quality_encoded'] = (
-        features_df['input_quality']
-        .map(qual_map)
-        .fillna(3)
-        .astype(int)
-    )
-    print("✅ Feature 9: input_quality_encoded")
-
-    # ─── ⓬ Complexity × length interaction ──────────────────────────────────────
+    print("✅ Feature 7: task_category")
+    
+    # 8. intent
+    if 'intent' in features_df.columns:
+        features_df['intent'] = features_df['intent'].fillna('informational')
+        print("✅ Feature 8: intent from dataset")
+    else:
+        intent_map = {
+            'explanation':'informational','how_to':'instructional','coding':'implementation',
+            'debugging':'problem_solving','reasoning':'analytical','listing':'informational',
+            'question':'inquiry','statement':'creative','unknown':'general'
+        }
+        features_df['intent'] = features_df['question_type'].map(intent_map)
+        print("✅ Feature 8: intent from question_type")
+    
+    # 9. knowledge
+    if 'knowledge' in features_df.columns:
+        features_df['knowledge'] = features_df['knowledge'].fillna('intermediate')
+        print("✅ Feature 9: knowledge from dataset")
+    else:
+        def assign_knowledge(row):
+            if row['difficulty_encoded']==1 and row['instruction_complexity']<0.4:
+                return 'basic'
+            if row['difficulty_encoded']==3 or row['instruction_complexity']>0.7:
+                return 'expert'
+            if row['difficulty_encoded']==2 and row['instruction_complexity']>0.5:
+                return 'advanced'
+            return 'intermediate'
+        features_df['knowledge'] = features_df.apply(assign_knowledge, axis=1)
+        print("✅ Feature 9: knowledge from difficulty & complexity")
+    
+    # 10. input_quality_encoded
+    if 'input_quality' in features_df.columns:
+        qm = {'poor':1,'fair':2,'good':3,'excellent':4}
+        features_df['input_quality_encoded'] = features_df['input_quality'].map(qm).fillna(3).astype(int)
+        print("✅ Feature 10: input_quality_encoded from dataset")
+    else:
+        def calc_quality(r):
+            s=2
+            if r['instruction_word_count']>10: s+=0.5
+            if r['instruction_word_count']>20: s+=0.5
+            if r['instruction_complexity']>0.3: s+=0.5
+            if r['instruction_complexity']>0.6: s+=0.5
+            inst=str(r['instruction'])
+            if inst and inst[0].isupper(): s+=0.3
+            if '?' in inst or '!' in inst:      s+=0.2
+            return min(4, max(1, int(s)))
+        features_df['input_quality_encoded'] = features_df.apply(calc_quality, axis=1)
+        print("✅ Feature 10: input_quality_encoded from instruction")
+    
+    # 11. complexity_length_interaction
     features_df['complexity_length_interaction'] = (
-        features_df['instruction_complexity'] 
-        * features_df['instruction_len'] 
-        / 1000
+        features_df['instruction_complexity'] * features_df['instruction_len'] / 1000
     )
-    print("✅ Feature 10: complexity_length_interaction")
-
-    # ─── ⓭ Contains code flag ───────────────────────────────────────────────────
-    def contains_code(text):
-        if pd.isna(text) or text == "":
-            return 0
-        patterns = [r'\bdef\b', r'\bclass\b', r'\bimport\b', r'\bprint\(', r'\breturn\b']
-        return int(any(re.search(p, str(text)) for p in patterns))
-
+    print("✅ Feature 11: complexity_length_interaction")
+    
+    # 12. contains_code
+    def contains_code(txt):
+        if pd.isna(txt): return 0
+        t=str(txt)
+        patterns=[r'```',r'\bdef\b',r'\bclass\b',r'\bimport\b',r'print\(',r'return\b']
+        return int(any(re.search(p,t) for p in patterns))
     features_df['contains_code'] = features_df['instruction'].apply(contains_code)
-    print("✅ Feature 11: contains_code")
-
-    # ─── ⓮ Questions count ──────────────────────────────────────────────────────
-    features_df['questions_count'] = (
-        features_df['instruction']
-        .str.count(r'\?')
-        .fillna(0)
-        .astype(int)
-    )
-    print("✅ Feature 12: questions_count")
-
-    # ─── ⓯ Listing detection ────────────────────────────────────────────────────
-    def has_listing(text):
-        if pd.isna(text) or text == "":
-            return 0
-        patterns = [r'^\s*-\s+', r'^\s*\d+\.\s+', r'\benumerate\b', r'\bitems\b']
-        return int(any(re.search(p, str(text), flags=re.MULTILINE) for p in patterns))
-
+    print("✅ Feature 12: contains_code")
+    
+    # 13. questions_count
+    features_df['questions_count'] = features_df['instruction'].str.count(r'\?').fillna(0).astype(int)
+    print("✅ Feature 13: questions_count")
+    
+    # 14. listing_present
+    def has_listing(txt):
+        if pd.isna(txt): return 0
+        t=str(txt)
+        pats=[r'^\s*[-*+]\s+',r'^\s*\d+\.\s+',r'\benumerate\b',r'\bitems\b',r'bullet']
+        return int(any(re.search(p,t,flags=re.MULTILINE|re.IGNORECASE) for p in pats))
     features_df['listing_present'] = features_df['instruction'].apply(has_listing)
-    print("✅ Feature 13: listing_present")
-
-    # ─── Clean up rows missing token counts ────────────────────────────────────
-    before = len(features_df)
+    print("✅ Feature 14: listing_present")
+    
+    # Clean up missing
+    before=len(features_df)
     features_df = features_df.dropna(subset=['input_tokens_mistral','actual_output_tokens'])
-    after  = len(features_df)
-    print(f"ℹ️ Dropped {before - after} rows missing token counts")
-
-    print(f"\n✅ All production-safe features created: {features_df.shape[1]} columns")
+    dropped = before - len(features_df)
+    if dropped>0:
+        print(f"🧹 Removed {dropped} rows missing token counts")
+    
+    print("✅ All production-safe features created using ONLY Mistral tokenizer")
+    print(f"🎯 Final dataset: {features_df.shape[0]} rows, {features_df.shape[1]} cols")
+    
     return features_df
+
+# Apply feature engineering
+df_features = extract_chris_features(df)
 
 ```
 # Cell 1: Setup and Imports
