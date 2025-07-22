@@ -1,72 +1,66 @@
 ```
-# Cell 5: Feature Selection and Data Preparation
-def prepare_modeling_data(df):
-    """Prepare data using exact feature specification (matching Cell 4)"""
-    
-    # Define target variable
-    target = 'actual_output_tokens'
-    
-    # Exact feature set from Cell 4 (NO response_to_instruction_ratio)
-    feature_columns = [
-        'input_tokens_mistral',           # Token count via Mistral tokenizer
-        'instruction_len',                # Character length of instruction  
-        'instruction_word_count',         # Number of words
-        'instruction_complexity',         # Composite complexity score
-        'question_type',                  # Instruction type (coded)
-        'difficulty_encoded',             # Query difficulty (coded)
-        'task_category',                  # Task type (coded)
-        'intent',                         # Instruction intent (coded)
-        'knowledge',                      # Required knowledge level (coded)
-        'input_quality_encoded',          # Encoded input quality
-        'complexity_length_interaction',  # Complexity × length interaction
-        'contains_code',                  # Code snippet present? (0/1)
-        'questions_count',                # Number of questions
-        'listing_present'                 # List/bullets detected? (0/1)
-    ]
-    
-    print(f"🎯 Using exact feature set ({len(feature_columns)} features)")
-    print("🚫 NO response_to_instruction_ratio (data leakage removed)")
-    
-    # Create feature matrix
-    X = df[feature_columns].copy()
-    y = df[target].copy()
-    
-    # Handle categorical variables
-    categorical_columns = ['question_type', 'task_category', 'intent', 'knowledge']
-    
-    # Label encoding for categorical variables
-    label_encoders = {}
-    for col in categorical_columns:
-        if col in X.columns:
-            le = LabelEncoder()
-            X[col] = le.fit_transform(X[col].astype(str))
-            label_encoders[col] = le
-            print(f"✅ Encoded {col}: {len(le.classes_)} categories")
-    
-    # Remove any remaining NaN values
-    mask = ~(X.isnull().any(axis=1) | y.isnull())
-    X = X[mask]
-    y = y[mask]
-    
-    print(f"✅ Prepared data: {X.shape[0]:,} samples, {X.shape[1]} features")
-    print(f"📋 Features: {list(X.columns)}")
-    print(f"🎯 Target statistics (Mistral tokens):")
-    print(f"   Mean: {y.mean():.1f} tokens")
-    print(f"   Std:  {y.std():.1f} tokens")
-    print(f"   Median: {y.median():.1f} tokens")
-    print(f"   Min:  {y.min():.1f} tokens")
-    print(f"   Max:  {y.max():.1f} tokens")
-    
-    return X, y, label_encoders
+# Cell 7: Random Forest Manual Grid Search with Single Progress Bar
 
-# Prepare modeling data
-X, y, label_encoders = prepare_modeling_data(df_features)
+import time
+from sklearn.model_selection import ParameterGrid, cross_val_score
+from sklearn.ensemble import RandomForestRegressor
+from tqdm.auto import tqdm
 
-# Show feature correlations with target
-feature_correlations = X.corrwith(y).abs().sort_values(ascending=False)
-print(f"\n🔗 Feature correlations with output tokens:")
-for feature, corr in feature_correlations.items():
-    print(f"   {feature}: {corr:.3f}")
+# 1️⃣ Define the RF hyperparameter grid
+rf_params = {
+    'n_estimators':       [100, 200, 300],
+    'max_depth':          [10, 15, 20, None],
+    'min_samples_split':  [2, 5, 10],
+    'min_samples_leaf':   [1, 2, 4],
+    'max_features':       ['sqrt', 'log2', None]
+}
+
+# 2️⃣ Expand into a list of param‐dicts
+param_list = list(ParameterGrid(rf_params))
+results    = []
+
+print(f"🌲 Running Random Forest grid search over {len(param_list)} combos…")
+t0 = time.time()
+
+# 3️⃣ Loop with a single tqdm progress bar
+for params in tqdm(param_list, desc="RF grid", unit="combo"):
+    try:
+        # Initialize model with this hyperparameter combo
+        model = RandomForestRegressor(
+            random_state=42,
+            n_jobs=-1,
+            **params
+        )
+        # 5‐fold CV (neg MAE → flip sign to get positive MAE)
+        scores = -cross_val_score(
+            model,
+            X_train, y_train,
+            cv=5,
+            scoring='neg_mean_absolute_error',
+            n_jobs=-1
+        )
+        results.append({'params': params, 'mae': scores.mean()})
+    except Exception as e:
+        # capture any failed combos
+        results.append({'params': params, 'mae': None, 'error': str(e)})
+
+print(f"⌛ Total RF grid time: {(time.time() - t0) / 60:.1f} min")
+
+# 4️⃣ Filter out failed runs and pick best
+valid = [r for r in results if r['mae'] is not None]
+best_entry = min(valid, key=lambda x: x['mae'])
+print(f"🏆 Best RF params: {best_entry['params']}  →  MAE: {best_entry['mae']:.2f} tokens")
+
+# 5️⃣ Refit on full training set
+best_rf = RandomForestRegressor(
+    random_state=42,
+    n_jobs=-1,
+    **best_entry['params']
+)
+print("🔧 Refitting best Random Forest on full training data…")
+best_rf.fit(X_train, y_train)
+print("✅ Random Forest refit complete!")
+
 ```
 # Cell 1: Setup and Imports
 ```python
