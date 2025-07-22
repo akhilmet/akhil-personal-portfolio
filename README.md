@@ -1,37 +1,30 @@
 ```
-# Cell 7: Random Forest Manual Grid Search with Single Progress Bar
-
-import time
+# Cell 7 (Updated): Random Forest Training with Progress & Error Handling
 from sklearn.model_selection import ParameterGrid, cross_val_score
 from sklearn.ensemble import RandomForestRegressor
-from tqdm.auto import tqdm
+import time
 
-# 1️⃣ Define the RF hyperparameter grid
+# Define your RF grid
 rf_params = {
-    'n_estimators':       [100, 200, 300],
-    'max_depth':          [10, 15, 20, None],
-    'min_samples_split':  [2, 5, 10],
-    'min_samples_leaf':   [1, 2, 4],
-    'max_features':       ['sqrt', 'log2', None]
+    'n_estimators': [100, 200, 300],
+    'max_depth': [10, 15, 20, None],
+    'min_samples_split': [2, 5, 10],
+    'min_samples_leaf': [1, 2, 4],
+    'max_features': ['sqrt', 'log2', None]
 }
 
-# 2️⃣ Expand into a list of param‐dicts
 param_list = list(ParameterGrid(rf_params))
-results    = []
+results = []
 
-print(f"🌲 Running Random Forest grid search over {len(param_list)} combos…")
-t0 = time.time()
+print(f"🔍 Starting RF grid search over {len(param_list)} parameter combinations...")
+t_start_all = time.time()
 
-# 3️⃣ Loop with a single tqdm progress bar
-for params in tqdm(param_list, desc="RF grid", unit="combo"):
+for i, params in enumerate(param_list, start=1):
+    print(f"\n▶️  [{i}/{len(param_list)}] Testing params: {params}")
+    t0 = time.time()
     try:
-        # Initialize model with this hyperparameter combo
-        model = RandomForestRegressor(
-            random_state=42,
-            n_jobs=-1,
-            **params
-        )
-        # 5‐fold CV (neg MAE → flip sign to get positive MAE)
+        model = RandomForestRegressor(**params, random_state=42, n_jobs=-1)
+        # 5-fold CV, neg_mean_absolute_error → flip sign
         scores = -cross_val_score(
             model,
             X_train, y_train,
@@ -39,27 +32,29 @@ for params in tqdm(param_list, desc="RF grid", unit="combo"):
             scoring='neg_mean_absolute_error',
             n_jobs=-1
         )
-        results.append({'params': params, 'mae': scores.mean()})
+        mae = scores.mean()
+        print(f"   ✔️  CV MAE: {mae:.2f} tokens    (folds: {', '.join(f'{s:.2f}' for s in scores)})")
+        results.append({'params': params, 'mae': mae})
     except Exception as e:
-        # capture any failed combos
+        print(f"   ❌ Error with these params: {e}")
         results.append({'params': params, 'mae': None, 'error': str(e)})
 
-print(f"⌛ Total RF grid time: {(time.time() - t0) / 60:.1f} min")
+    elapsed = time.time() - t0
+    total_elapsed = time.time() - t_start_all
+    remaining = total_elapsed / i * (len(param_list) - i)
+    print(f"   ⏱ Elapsed this iter: {elapsed:.1f}s — Est. remaining: {remaining/60:.1f}min")
 
-# 4️⃣ Filter out failed runs and pick best
+# Filter out any errors
 valid = [r for r in results if r['mae'] is not None]
-best_entry = min(valid, key=lambda x: x['mae'])
-print(f"🏆 Best RF params: {best_entry['params']}  →  MAE: {best_entry['mae']:.2f} tokens")
+best = min(valid, key=lambda x: x['mae'])
+print(f"\n🏆 Best params: {best['params']} → MAE: {best['mae']:.2f} tokens")
 
-# 5️⃣ Refit on full training set
-best_rf = RandomForestRegressor(
-    random_state=42,
-    n_jobs=-1,
-    **best_entry['params']
-)
-print("🔧 Refitting best Random Forest on full training data…")
+# Refit best model on full training set
+best_rf = RandomForestRegressor(**best['params'], random_state=42, n_jobs=-1)
+print("🔧 Refitting best model on full training data…")
 best_rf.fit(X_train, y_train)
-print("✅ Random Forest refit complete!")
+print("✅ Refitting complete!")
+
 
 ```
 # Cell 1: Setup and Imports
