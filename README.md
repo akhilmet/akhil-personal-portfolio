@@ -1,66 +1,5 @@
-```
-# Cell 7 (Updated): Random Forest Training with Progress & Error Handling
-from sklearn.model_selection import ParameterGrid, cross_val_score
-from sklearn.ensemble import RandomForestRegressor
-import time
-
-# Define your RF grid
-rf_params = {
-    'n_estimators': [100, 200, 300],
-    'max_depth': [10, 15, 20, None],
-    'min_samples_split': [2, 5, 10],
-    'min_samples_leaf': [1, 2, 4],
-    'max_features': ['sqrt', 'log2', None]
-}
-
-param_list = list(ParameterGrid(rf_params))
-results = []
-
-print(f"🔍 Starting RF grid search over {len(param_list)} parameter combinations...")
-t_start_all = time.time()
-
-for i, params in enumerate(param_list, start=1):
-    print(f"\n▶️  [{i}/{len(param_list)}] Testing params: {params}")
-    t0 = time.time()
-    try:
-        model = RandomForestRegressor(**params, random_state=42, n_jobs=-1)
-        # 5-fold CV, neg_mean_absolute_error → flip sign
-        scores = -cross_val_score(
-            model,
-            X_train, y_train,
-            cv=5,
-            scoring='neg_mean_absolute_error',
-            n_jobs=-1
-        )
-        mae = scores.mean()
-        print(f"   ✔️  CV MAE: {mae:.2f} tokens    (folds: {', '.join(f'{s:.2f}' for s in scores)})")
-        results.append({'params': params, 'mae': mae})
-    except Exception as e:
-        print(f"   ❌ Error with these params: {e}")
-        results.append({'params': params, 'mae': None, 'error': str(e)})
-
-    elapsed = time.time() - t0
-    total_elapsed = time.time() - t_start_all
-    remaining = total_elapsed / i * (len(param_list) - i)
-    print(f"   ⏱ Elapsed this iter: {elapsed:.1f}s — Est. remaining: {remaining/60:.1f}min")
-
-# Filter out any errors
-valid = [r for r in results if r['mae'] is not None]
-best = min(valid, key=lambda x: x['mae'])
-print(f"\n🏆 Best params: {best['params']} → MAE: {best['mae']:.2f} tokens")
-
-# Refit best model on full training set
-best_rf = RandomForestRegressor(**best['params'], random_state=42, n_jobs=-1)
-print("🔧 Refitting best model on full training data…")
-best_rf.fit(X_train, y_train)
-print("✅ Refitting complete!")
-
-
-```
-# Cell 1: Setup and Imports
-```python
-# Token Predictor with Magpie Dataset - Chris's Feature Specification
-# Enhanced model using Random Forest and XGBoost with specified feature set
+# Enhanced Token Predictor - Filtered Dataset Analysis
+# Based on Chris's feedback: Filter by output token ranges and analyze patterns
 
 import pandas as pd
 import numpy as np
@@ -68,7 +7,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.model_selection import train_test_split, cross_val_score, GridSearchCV
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 import xgboost as xgb
 import re
@@ -80,27 +19,25 @@ warnings.filterwarnings('ignore')
 plt.style.use('seaborn-v0_8-whitegrid')
 sns.set_palette("husl")
 
-print("🚀 Token Predictor - Chris's Feature Specification")
-print("=" * 60)
-print("🎯 Using exact feature set from specification table")
+print("🚀 Enhanced Token Predictor - Dataset Filtering Analysis")
+print("=" * 70)
+print("🎯 Following Chris's advice: Filter dataset by output token ranges")
 ```
 
-# Cell 2: Data Loading and Exploration
+# Cell 2: Data Loading
 ```python
-# Data Loading Function
 import os
 import glob
 import pandas as pd
 
 def load_and_explore_data():
-    # 1. Where am I?
+    """Load Magpie dataset"""
     cwd = os.getcwd()
     print(f"CWD: {cwd}")
     
-    # 2. Point at the right folder
     base_dir = os.path.join(
         cwd,
-        "query-routing-systems-datasets",
+        "query-routing-systems-datasets", 
         "Magpie-Llama-3.1-Pro-DPO-100k-v0.1",
         "data"
     )
@@ -108,53 +45,50 @@ def load_and_explore_data():
     if not os.path.isdir(base_dir):
         raise FileNotFoundError(f"❌ Data directory not found:\n  {base_dir}")
     
-    # 3. Gather all .parquet files
     parquet_files = glob.glob(os.path.join(base_dir, "*.parquet"))
     if not parquet_files:
         raise FileNotFoundError(f"❌ No parquet files found in:\n  {base_dir}")
     
-    # 4. Read each one using pyarrow
-    df_list = [
-        pd.read_parquet(fp, engine="pyarrow")
-        for fp in parquet_files
-    ]
+    df_list = [pd.read_parquet(fp, engine="pyarrow") for fp in parquet_files]
     df = pd.concat(df_list, ignore_index=True)
     
-    # 5. Quick summary
     print(f"✅ Loaded {len(parquet_files)} files → {df.shape[0]} rows × {df.shape[1]} columns")
     print("Columns:", df.columns.tolist())
+    
+    # Show task_category info
+    if 'task_category' in df.columns:
+        print(f"📊 task_category info:")
+        print(f"   Type: {df['task_category'].dtype}")
+        print(f"   Unique values: {df['task_category'].nunique()}")
+        print(f"   Sample values: {df['task_category'].value_counts().head().to_dict()}")
+    
+    # Check missing values
     missing = df.isnull().sum()
     if missing.any():
-        print("⚠️ Missing values:\n", missing[missing > 0])
+        print("⚠️ Missing values:")
+        for col, count in missing[missing > 0].items():
+            print(f"   {col}: {count} ({count/len(df)*100:.1f}%)")
     
-    # 6. Peek at the data
+    print(f"\n📋 Dataset preview:")
     display(df.head(3))
     return df
 
-# Run it!
+# Load data
 df = load_and_explore_data()
 ```
 
-# Cell 3: Basic Data Analysis
+# Cell 3: Basic Data Processing
 ```python
-# Basic Data Analysis
 import numpy as np
-import pandas as pd
 
-# 1) Quick overview
-print("📝 Dataset Analysis:")
-print(f"  Total samples: {len(df):,}")
-print(f"  Available columns: {list(df.columns)}")
-
-# 2) Extraction helper
+# Extract response text
 def extract_response_text(responses_data):
-    """Extract the actual response text from the `responses` column."""
-    # --- Handle None or pure NaN ---
+    """Extract response text from responses column"""
     if responses_data is None:
         return ""
     if isinstance(responses_data, float) and np.isnan(responses_data):
         return ""
-    # Pandas NA on array-like → check if *all* missing
+    
     try:
         na_mask = pd.isna(responses_data)
         if isinstance(na_mask, (np.ndarray, pd.Series)) and na_mask.all():
@@ -163,13 +97,11 @@ def extract_response_text(responses_data):
             return ""
     except Exception:
         pass
-    # --- If it's a numpy array, convert to list ---
+    
     if isinstance(responses_data, np.ndarray):
         responses_data = responses_data.tolist()
-    # --- If it's already a plain string ---
     if isinstance(responses_data, str):
         return responses_data
-    # --- If it's a list, grab first element ---
     if isinstance(responses_data, list) and len(responses_data) > 0:
         first = responses_data[0]
         if isinstance(first, dict):
@@ -178,1114 +110,999 @@ def extract_response_text(responses_data):
                     return str(first[key])
         elif isinstance(first, str):
             return first
-    # --- If it's a dict, look for a text field ---
     if isinstance(responses_data, dict):
         for key in ('text','content','value','response'):
             if key in responses_data:
                 return str(responses_data[key])
-    # --- Fallback to stringifying whatever it is ---
+    
     return str(responses_data)
 
-# 3) Apply extraction
-print("\n🔄 Extracting response text from `'responses'` column…")
+print("🔄 Extracting response text...")
 df['response'] = df['responses'].apply(extract_response_text)
 
-# 4) Sanity-check first row
-sample = df['response'].iloc[0]
-print(f"  Sample extracted response (first 200 chars):\n  {sample[:200]}...\n")
-
-# 5) Compute simple text stats
-df['instruction_len']   = df['instruction'].astype(str).str.len()
-df['response_len']      = df['response'].astype(str).str.len()
-df['response_word_ct']  = df['response'].astype(str).str.split().str.len().fillna(0)
+# Basic text stats
+df['instruction_len'] = df['instruction'].astype(str).str.len()
+df['response_len'] = df['response'].astype(str).str.len()
+df['response_word_ct'] = df['response'].astype(str).str.split().str.len().fillna(0)
 
 print("📊 Text Statistics:")
 print(f"  • Instruction length – mean: {df['instruction_len'].mean():.1f}, max: {df['instruction_len'].max()}")
 print(f"  • Response length    – mean: {df['response_len'].mean():.1f}, max: {df['response_len'].max()}")
 print(f"  • Response word-count – mean: {df['response_word_ct'].mean():.1f}, max: {df['response_word_ct'].max()}")
 
-# 6) List remaining metadata columns
-meta_cols = [c for c in df.columns if c not in
-             ['instruction','responses','response',
-              'instruction_len','response_len','response_word_ct']]
-print(f"\nAvailable metadata features ({len(meta_cols)}): {meta_cols}")
-print("\n✅ Data exploration complete. Ready for feature engineering!")
+print("\n✅ Basic data processing complete!")
 ```
 
-# Cell 4: Feature Engineering - Chris's Specification
+# Cell 4: Token Counting with Mistral
 ```python
-def extract_chris_features(df):
-    """Extract features exactly as specified by Chris"""
+import pandas as pd
+import numpy as np
+import re
+from mistral_common.tokens.tokenizers.mistral import MistralTokenizer
+from mistral_common.protocol.instruct.messages import UserMessage
+from mistral_common.protocol.instruct.request import ChatCompletionRequest
+
+def calculate_tokens_and_analyze(df):
+    """Calculate tokens and analyze distribution patterns"""
     
     features_df = df.copy()
     
-    print("🛠️ Starting feature engineering per Chris's specification...")
+    print("🛠️ Calculating tokens with Mistral tokenizer...")
+    print("🎯 Using ONLY Mistral tokenizer - NO fallbacks")
     
-    # ==================
-    # MISTRAL TOKENIZER (NO FALLBACK)
-    # ==================
+    # Load Mistral tokenizer
+    print("🔥 Loading Mistral tokenizer (v3)…")
+    tokenizer = MistralTokenizer.v3()
+    print("✅ Mistral tokenizer loaded")
     
-    def get_input_tokens_mistral(instruction_text):
-        """Get input token count using Mistral tokenizer - NO FALLBACK"""
-        input_tokens = len(mistral_tokenizer.encode(instruction_text))
-        return input_tokens
+    # Token counting helper
+    def count_tokens(text):
+        if pd.isna(text) or text == "":
+            return 0
+        req = ChatCompletionRequest(messages=[UserMessage(content=str(text))])
+        enc = tokenizer.encode_chat_completion(req)
+        return len(enc.tokens)
+    
+    print("🎯 Calculating token counts...")
+    features_df['input_tokens_mistral'] = features_df['instruction'].apply(count_tokens)
+    features_df['actual_output_tokens'] = features_df['response'].apply(count_tokens)
+    
+    # Clean up missing values
+    before_count = len(features_df)
+    features_df = features_df.dropna(subset=['input_tokens_mistral', 'actual_output_tokens'])
+    after_count = len(features_df)
+    
+    if before_count != after_count:
+        print(f"🧹 Removed {before_count - after_count} rows with missing token counts")
+    
+    print("✅ Token calculation complete!")
+    print(f"📊 Token statistics:")
+    print(f"   Input tokens - Mean: {features_df['input_tokens_mistral'].mean():.1f}, Max: {features_df['input_tokens_mistral'].max()}")
+    print(f"   Output tokens - Mean: {features_df['actual_output_tokens'].mean():.1f}, Max: {features_df['actual_output_tokens'].max()}")
+    
+    return features_df
 
-    def get_output_tokens_mistral(response_text):
-        """Get output token count using Mistral tokenizer - NO FALLBACK"""
-        output_tokens = len(mistral_tokenizer.encode(response_text))
-        return output_tokens
+# Calculate tokens
+df_with_tokens = calculate_tokens_and_analyze(df)
+```
 
-    # Initialize Mistral tokenizer
-    from mistral_common.tokens.tokenizers.mistral import MistralTokenizer
-    mistral_tokenizer = MistralTokenizer.v3()
-    print("✅ Mistral tokenizer loaded - using for all tokenization")
+# Cell 5: Dataset Filtering Analysis (Chris's Suggestion)
+```python
+def analyze_token_distribution_and_filter(df):
+    """Analyze token distribution and create filtered datasets as Chris suggested"""
     
-    # Calculate tokens using Mistral
-    print("🎯 Calculating token counts using Mistral tokenizer...")
-    features_df['input_tokens_mistral'] = features_df['instruction'].apply(get_input_tokens_mistral)
-    features_df['actual_output_tokens'] = features_df['response'].apply(get_output_tokens_mistral)
+    print("📊 ANALYZING TOKEN DISTRIBUTION PATTERNS")
+    print("=" * 60)
     
-    print("✅ Mistral tokenization complete")
+    # Overall distribution
+    print(f"📈 Overall Token Distribution:")
+    print(f"   Total samples: {len(df):,}")
+    print(f"   Output token stats:")
+    print(f"     Mean: {df['actual_output_tokens'].mean():.1f}")
+    print(f"     Median: {df['actual_output_tokens'].median():.1f}")
+    print(f"     Std: {df['actual_output_tokens'].std():.1f}")
+    print(f"     Min: {df['actual_output_tokens'].min()}")
+    print(f"     Max: {df['actual_output_tokens'].max()}")
     
-    # ==================
-    # CHRIS'S FEATURE SET
-    # ==================
+    # Token range analysis
+    ranges = [
+        (0, 50, "Very Short"),
+        (50, 150, "Short"), 
+        (150, 300, "Medium"),
+        (300, 500, "Long"),
+        (500, 1000, "Very Long"),
+        (1000, float('inf'), "Extremely Long")
+    ]
     
-    # 1. instruction_len (Character length of instruction)
-    features_df['instruction_len'] = features_df['instruction'].str.len()
+    print(f"\n🎯 TOKEN RANGE BREAKDOWN:")
+    range_stats = {}
     
-    # 2. instruction_word_count (Number of words)
-    features_df['instruction_word_count'] = features_df['instruction'].str.split().str.len().fillna(0)
+    for min_tokens, max_tokens, label in ranges:
+        if max_tokens == float('inf'):
+            mask = df['actual_output_tokens'] >= min_tokens
+            range_label = f"{min_tokens}+"
+        else:
+            mask = (df['actual_output_tokens'] >= min_tokens) & (df['actual_output_tokens'] < max_tokens)
+            range_label = f"{min_tokens}-{max_tokens}"
+        
+        count = mask.sum()
+        percentage = (count / len(df)) * 100
+        
+        range_stats[label] = {
+            'range': range_label,
+            'count': count,
+            'percentage': percentage,
+            'mask': mask
+        }
+        
+        print(f"   {label:15} ({range_label:8}): {count:6,} samples ({percentage:5.1f}%)")
     
-    # 3. instruction_complexity (Composite complexity score)
+    # Visualize distribution
+    fig, axes = plt.subplots(2, 2, figsize=(15, 10))
+    
+    # 1. Histogram
+    axes[0, 0].hist(df['actual_output_tokens'], bins=100, alpha=0.7, color='skyblue', edgecolor='black')
+    axes[0, 0].set_xlabel('Output Tokens')
+    axes[0, 0].set_ylabel('Frequency') 
+    axes[0, 0].set_title('Output Token Distribution')
+    axes[0, 0].axvline(df['actual_output_tokens'].mean(), color='red', linestyle='--', label=f'Mean: {df["actual_output_tokens"].mean():.0f}')
+    axes[0, 0].legend()
+    
+    # 2. Log scale histogram
+    axes[0, 1].hist(df['actual_output_tokens'], bins=100, alpha=0.7, color='lightcoral', edgecolor='black')
+    axes[0, 1].set_xlabel('Output Tokens')
+    axes[0, 1].set_ylabel('Frequency')
+    axes[0, 1].set_title('Output Token Distribution (Log Scale)')
+    axes[0, 1].set_yscale('log')
+    
+    # 3. Range breakdown bar chart
+    labels = [stats['range'] for stats in range_stats.values()]
+    counts = [stats['count'] for stats in range_stats.values()]
+    
+    axes[1, 0].bar(labels, counts, alpha=0.7, color='green')
+    axes[1, 0].set_xlabel('Token Range')
+    axes[1, 0].set_ylabel('Count')
+    axes[1, 0].set_title('Sample Count by Token Range')
+    axes[1, 0].tick_params(axis='x', rotation=45)
+    
+    # 4. Input vs Output relationship
+    sample_df = df.sample(n=min(5000, len(df)), random_state=42)
+    axes[1, 1].scatter(sample_df['input_tokens_mistral'], sample_df['actual_output_tokens'], alpha=0.5, color='purple')
+    axes[1, 1].set_xlabel('Input Tokens')
+    axes[1, 1].set_ylabel('Output Tokens')
+    axes[1, 1].set_title('Input vs Output Token Relationship')
+    
+    plt.tight_layout()
+    plt.show()
+    
+    return range_stats
+
+# Analyze distribution
+range_stats = analyze_token_distribution_and_filter(df_with_tokens)
+```
+
+# Cell 6: Create Filtered Datasets (Following Chris's Advice)
+```python
+def create_filtered_datasets(df, range_stats):
+    """Create filtered datasets for different token ranges as Chris suggested"""
+    
+    print("🔧 CREATING FILTERED DATASETS")
+    print("=" * 50)
+    
+    filtered_datasets = {}
+    
+    # Create datasets for each range
+    for range_name, stats in range_stats.items():
+        if stats['count'] > 1000:  # Only create datasets with sufficient samples
+            filtered_df = df[stats['mask']].copy()
+            filtered_datasets[range_name] = filtered_df
+            
+            print(f"✅ {range_name:15}: {len(filtered_df):6,} samples")
+            print(f"   Token range: {stats['range']:8}")
+            print(f"   Mean output: {filtered_df['actual_output_tokens'].mean():6.1f} tokens")
+            print(f"   Std output:  {filtered_df['actual_output_tokens'].std():6.1f} tokens")
+            print()
+    
+    # Special focus datasets (Chris's specific suggestions)
+    print("🎯 CREATING CHRIS'S SUGGESTED FOCUS DATASETS:")
+    
+    # Short outputs (<50 tokens)
+    short_mask = df['actual_output_tokens'] < 50
+    short_df = df[short_mask].copy()
+    filtered_datasets['Short_Focus'] = short_df
+    print(f"📝 Short Focus (<50 tokens):     {len(short_df):6,} samples")
+    
+    # Long outputs (>500 tokens)  
+    long_mask = df['actual_output_tokens'] > 500
+    long_df = df[long_mask].copy()
+    filtered_datasets['Long_Focus'] = long_df
+    print(f"📜 Long Focus (>500 tokens):     {len(long_df):6,} samples")
+    
+    # Medium range (50-500 tokens) - the "sweet spot"
+    medium_mask = (df['actual_output_tokens'] >= 50) & (df['actual_output_tokens'] <= 500)
+    medium_df = df[medium_mask].copy()
+    filtered_datasets['Medium_Focus'] = medium_df
+    print(f"🎯 Medium Focus (50-500 tokens): {len(medium_df):6,} samples")
+    
+    return filtered_datasets
+
+# Create filtered datasets
+filtered_datasets = create_filtered_datasets(df_with_tokens, range_stats)
+```
+
+# Cell 7: Feature Engineering for Each Dataset
+```python
+def extract_features_for_dataset(df, dataset_name):
+    """Extract features for a specific filtered dataset"""
+    
+    print(f"🛠️ Feature engineering for {dataset_name}...")
+    
+    features_df = df.copy()
+    
+    # Basic features
+    features_df['instruction_len'] = features_df['instruction'].astype(str).str.len()
+    features_df['instruction_word_count'] = features_df['instruction'].astype(str).str.split().str.len().fillna(0)
+    
+    # Complexity score
     def calculate_complexity_score(text):
-        """Calculate comprehensive complexity score"""
-        if pd.isna(text):
-            return 0
-        
-        text = str(text)
-        words = text.split()
-        
+        if pd.isna(text) or text == "":
+            return 0.0
+        txt = str(text)
+        words = txt.split()
         if not words:
-            return 0
+            return 0.0
         
-        # Vocabulary diversity
-        unique_words = len(set(words))
-        vocab_diversity = unique_words / len(words)
+        vocab_div = len(set(words)) / len(words)
+        avg_word_len = np.mean([len(w) for w in words])
+        punct_den = len(re.findall(r'[!@#$%^&*(),.?":{}|<>]', txt)) / len(txt)
         
-        # Average word length
-        avg_word_length = np.mean([len(word) for word in words])
-        
-        # Punctuation density
-        punctuation_count = len(re.findall(r'[!@#$%^&*(),.?":{}|<>]', text))
-        punct_density = punctuation_count / len(text) if len(text) > 0 else 0
-        
-        # Technical terms density
-        technical_patterns = [
+        tech_patterns = [
             r'\bfunction\b', r'\bclass\b', r'\bimport\b', r'\bdef\b', r'\breturn\b',
             r'\bapi\b', r'\bdatabase\b', r'\balgorithm\b', r'\bmodel\b', r'\btraining\b',
             r'\btensor\b', r'\bnumpy\b', r'\bpandas\b', r'\bsklearn\b', r'\bpython\b',
             r'\bcode\b', r'\bvariable\b', r'\bloop\b', r'\barray\b', r'\blist\b'
         ]
+        tech_count = sum(len(re.findall(p, txt.lower())) for p in tech_patterns)
+        tech_den = tech_count / len(words)
         
-        technical_count = sum(len(re.findall(pattern, text.lower())) for pattern in technical_patterns)
-        tech_density = technical_count / len(words)
-        
-        # Composite complexity score
-        complexity = (vocab_diversity * 0.3 + 
-                     (min(avg_word_length, 15) / 15) * 0.2 + 
-                     min(punct_density, 0.1) * 2.0 * 0.2 + 
-                     min(tech_density, 0.5) * 2.0 * 0.3)
-        
-        return min(complexity, 1.0)
+        score = (vocab_div * 0.3 + (min(avg_word_len, 15) / 15) * 0.2 + 
+                min(punct_den, 0.1) * 2.0 * 0.2 + min(tech_den, 0.5) * 2.0 * 0.3)
+        return min(score, 1.0)
     
     features_df['instruction_complexity'] = features_df['instruction'].apply(calculate_complexity_score)
     
-    # 4. question_type (Instruction type - coded)
+    # Question type
     def get_question_type(text):
-        """Classify question types"""
-        if pd.isna(text):
+        if pd.isna(text) or text == "":
             return 'unknown'
-        
-        text = str(text).lower()
-        
-        if any(word in text for word in ['what', 'define', 'explain', 'describe']):
+        t = text.lower()
+        if any(w in t for w in ['what','define','explain','describe']):
             return 'explanation'
-        elif any(word in text for word in ['how', 'tutorial', 'guide', 'steps']):
+        if any(w in t for w in ['how','tutorial','guide','steps']):
             return 'how_to'
-        elif any(word in text for word in ['code', 'function', 'implement', 'write']):
+        if any(w in t for w in ['code','function','implement','write']):
             return 'coding'
-        elif any(word in text for word in ['debug', 'fix', 'error', 'problem']):
+        if any(w in t for w in ['debug','fix','error','problem']):
             return 'debugging'
-        elif any(word in text for word in ['why', 'reason', 'because']):
+        if any(w in t for w in ['why','reason','because']):
             return 'reasoning'
-        elif any(word in text for word in ['list', 'enumerate', 'examples']):
+        if any(w in t for w in ['list','enumerate','examples']):
             return 'listing'
-        elif any(word in text for word in ['compare', 'difference', 'versus']):
+        if any(w in t for w in ['compare','difference','versus']):
             return 'comparison'
-        elif text.strip().endswith('?'):
+        if t.strip().endswith('?'):
             return 'question'
-        else:
-            return 'statement'
+        return 'statement'
     
     features_df['question_type'] = features_df['instruction'].apply(get_question_type)
     
-    # 5. difficulty_encoded (Query difficulty - coded)
+    # Handle metadata
     if 'difficulty' in features_df.columns:
-        difficulty_map = {'easy': 1, 'medium': 2, 'hard': 3}
-        features_df['difficulty_encoded'] = features_df['difficulty'].map(difficulty_map).fillna(2)
-        print(f"✅ Encoded difficulty: {features_df['difficulty'].value_counts().to_dict()}")
+        dm = {'easy':1,'medium':2,'hard':3}
+        features_df['difficulty_encoded'] = features_df['difficulty'].map(dm).fillna(2).astype(int)
     else:
-        # Create default difficulty based on complexity
         features_df['difficulty_encoded'] = pd.cut(
-            features_df['instruction_complexity'], 
-            bins=[0, 0.3, 0.6, 1.0], 
-            labels=[1, 2, 3]
+            features_df['instruction_complexity'], bins=[0,0.3,0.6,1.0], labels=[1,2,3]
         ).astype(int)
-        print("✅ Created difficulty_encoded from complexity")
     
-    # 6. task_category (Task type - coded)
-    if 'task_category' in features_df.columns:
-        print(f"✅ Found task_category with {features_df['task_category'].nunique()} categories")
-    else:
-        # Map question types to task categories
-        task_map = {
-            'explanation': 'information_seeking',
-            'how_to': 'planning',
-            'coding': 'coding',
-            'debugging': 'coding',
-            'reasoning': 'reasoning',
-            'listing': 'information_seeking',
-            'comparison': 'reasoning',
-            'question': 'information_seeking',
-            'statement': 'creative_writing',
-            'unknown': 'information_seeking'
-        }
-        features_df['task_category'] = features_df['question_type'].map(task_map)
-        print("✅ Created task_category from question_type")
+    # Task category
+    features_df['task_category'] = features_df['task_category'].fillna('Information seeking')
     
-    # 7. intent (Instruction intent - coded)
+    # Intent
     if 'intent' in features_df.columns:
-        print(f"✅ Found intent with {features_df['intent'].nunique()} categories")
+        features_df['intent'] = features_df['intent'].fillna('informational')
     else:
-        # Map question types to intents
-        intent_map = {
-            'explanation': 'informational',
-            'how_to': 'instructional',
-            'coding': 'implementation',
-            'debugging': 'problem_solving',
-            'reasoning': 'analytical',
-            'listing': 'informational',
-            'comparison': 'comparative',
-            'question': 'inquiry',
-            'statement': 'creative',
-            'unknown': 'general'
+        imap = {
+            'explanation':'informational','how_to':'instructional','coding':'implementation',
+            'debugging':'problem_solving','reasoning':'analytical','listing':'informational',
+            'comparison':'comparative','question':'inquiry','statement':'creative','unknown':'general'
         }
-        features_df['intent'] = features_df['question_type'].map(intent_map)
-        print("✅ Created intent from question_type")
+        features_df['intent'] = features_df['question_type'].map(imap)
     
-    # 8. knowledge (Required knowledge level - coded)
+    # Knowledge
     if 'knowledge' in features_df.columns:
-        print(f"✅ Found knowledge with {features_df['knowledge'].nunique()} categories")
+        features_df['knowledge'] = features_df['knowledge'].fillna('intermediate')
     else:
-        # Map difficulty and complexity to knowledge levels
         def assign_knowledge_level(row):
-            if row['difficulty_encoded'] == 1 and row['instruction_complexity'] < 0.4:
+            if row['difficulty_encoded']==1 and row['instruction_complexity']<0.4:
                 return 'basic'
-            elif row['difficulty_encoded'] == 3 or row['instruction_complexity'] > 0.7:
+            if row['difficulty_encoded']==3 or row['instruction_complexity']>0.7:
                 return 'expert'
-            elif row['difficulty_encoded'] == 2 and row['instruction_complexity'] > 0.5:
+            if row['difficulty_encoded']==2 and row['instruction_complexity']>0.5:
                 return 'advanced'
-            else:
-                return 'intermediate'
-        
+            return 'intermediate'
         features_df['knowledge'] = features_df.apply(assign_knowledge_level, axis=1)
-        print("✅ Created knowledge from difficulty and complexity")
     
-    # 9. input_quality_encoded (Encoded input quality)
+    # Input quality
     if 'input_quality' in features_df.columns:
-        if features_df['input_quality'].dtype == 'object':
-            quality_map = {'poor': 1, 'fair': 2, 'good': 3, 'excellent': 4}
-            features_df['input_quality_encoded'] = features_df['input_quality'].map(quality_map).fillna(3)
-        else:
-            features_df['input_quality_encoded'] = features_df['input_quality']
-        print("✅ Created input_quality_encoded")
+        qmap = {'poor':1,'fair':2,'good':3,'excellent':4}
+        features_df['input_quality_encoded'] = features_df['input_quality'].map(qmap).fillna(3).astype(int)
     else:
-        # Create quality score based on instruction characteristics
         def calculate_input_quality(row):
-            score = 2  # Base score
-            
-            # Length factor
-            if row['instruction_word_count'] > 10:
-                score += 0.5
-            if row['instruction_word_count'] > 20:
-                score += 0.5
-                
-            # Complexity factor
-            if row['instruction_complexity'] > 0.3:
-                score += 0.5
-            if row['instruction_complexity'] > 0.6:
-                score += 0.5
-                
-            # Grammar indicators (question marks, proper capitalization)
-            instruction = str(row['instruction'])
-            if instruction and instruction[0].isupper():
-                score += 0.3
-            if '?' in instruction or '!' in instruction:
-                score += 0.2
-                
+            score = 2
+            if row['instruction_word_count']>10: score += 0.5
+            if row['instruction_word_count']>20: score += 0.5
+            if row['instruction_complexity']>0.3: score += 0.5
+            if row['instruction_complexity']>0.6: score += 0.5
+            inst = str(row['instruction'])
+            if inst and inst[0].isupper(): score += 0.3
+            if '?' in inst or '!' in inst: score += 0.2
             return min(4, max(1, int(score)))
-        
         features_df['input_quality_encoded'] = features_df.apply(calculate_input_quality, axis=1)
-        print("✅ Created input_quality_encoded from instruction characteristics")
     
-    # 10. response_to_instruction_ratio (Output/input token ratio)
-    # NOTE: Chris included this but it uses target variable - we'll calculate it
-    features_df['response_to_instruction_ratio'] = (
-        features_df['actual_output_tokens'] / features_df['input_tokens_mistral'].replace(0, 1)
-    )
-    print("⚠️ Created response_to_instruction_ratio (contains target variable)")
-    
-    # 11. complexity_length_interaction (Complexity × length interaction)
+    # Interaction features
     features_df['complexity_length_interaction'] = (
         features_df['instruction_complexity'] * features_df['instruction_len'] / 1000
     )
     
-    # 12. contains_code (Code snippet present? 0/1)
+    # Code detection
     def contains_code(text):
-        """Detect if text contains code snippets"""
-        if pd.isna(text):
-            return 0
-        
-        text = str(text)
-        code_indicators = [
-            r'```', r'`[^`]+`', r'\bdef\s+\w+\(', r'\bclass\s+\w+',
-            r'\bimport\s+\w+', r'\bfrom\s+\w+\s+import',
-            r'print\s*\(', r'return\s+\w+', r'if\s+\w+.*:',
-            r'for\s+\w+\s+in', r'while\s+\w+.*:'
-        ]
-        
-        for pattern in code_indicators:
-            if re.search(pattern, text):
-                return 1
-        return 0
-    
+        if pd.isna(text): return 0
+        t = str(text)
+        indicators = [r'```', r'`[^`]+`', r'\bdef\b', r'\bclass\b', r'\bimport\b', r'print\s*\(']
+        return int(any(re.search(p, t) for p in indicators))
     features_df['contains_code'] = features_df['instruction'].apply(contains_code)
     
-    # 13. questions_count (Number of questions)
-    features_df['questions_count'] = features_df['instruction'].str.count(r'\?').fillna(0)
+    # Question count
+    features_df['questions_count'] = features_df['instruction'].str.count(r'\?').fillna(0).astype(int)
     
-    # 14. listing_present (List/bullets detected? 0/1)
+    # Listing detection
     def has_listing(text):
-        """Detect if text contains lists or bullets"""
-        if pd.isna(text):
-            return 0
-        
-        text = str(text)
-        listing_patterns = [
-            r'^\s*[-*+]\s+', r'^\s*\d+\.\s+', r'^\s*\w+\)\s+',
-            r'\b(first|second|third|1\.|2\.|3\.)', r'(steps|points|items|list)',
-            r'enumerate', r'bullet'
-        ]
-        
-        for pattern in listing_patterns:
-            if re.search(pattern, text, re.MULTILINE | re.IGNORECASE):
-                return 1
-        return 0
-    
+        if pd.isna(text): return 0
+        t = str(text)
+        patterns = [r'^\s*[-*+]\s+', r'^\s*\d+\.\s+', r'\benumerate\b']
+        return int(any(re.search(p, t, flags=re.MULTILINE|re.IGNORECASE) for p in patterns))
     features_df['listing_present'] = features_df['instruction'].apply(has_listing)
     
-    print("✅ All features per Chris's specification created")
-    
-    # Clean up any missing values
-    features_df = features_df.dropna(subset=['input_tokens_mistral', 'actual_output_tokens'])
-    
-    # ==================
-    # VISUALIZATION
-    # ==================
-    
-    print("📊 Creating feature distribution visualizations...")
-    
-    fig, axes = plt.subplots(2, 3, figsize=(18, 10))
-    
-    # Input tokens
-    axes[0, 0].hist(features_df['input_tokens_mistral'], bins=50, alpha=0.7, color='skyblue')
-    axes[0, 0].set_title('Input Tokens (Mistral)')
-    axes[0, 0].set_xlabel('Tokens')
-    
-    # Output tokens (target)
-    axes[0, 1].hist(features_df['actual_output_tokens'], bins=50, alpha=0.7, color='lightcoral')
-    axes[0, 1].set_title('Output Tokens (Target)')
-    axes[0, 1].set_xlabel('Tokens')
-    
-    # Complexity
-    axes[0, 2].hist(features_df['instruction_complexity'], bins=30, alpha=0.7, color='green')
-    axes[0, 2].set_title('Instruction Complexity')
-    axes[0, 2].set_xlabel('Complexity Score')
-    
-    # Question type
-    question_counts = features_df['question_type'].value_counts()
-    axes[1, 0].bar(range(len(question_counts)), question_counts.values, alpha=0.7)
-    axes[1, 0].set_title('Question Types')
-    axes[1, 0].set_xticks(range(len(question_counts)))
-    axes[1, 0].set_xticklabels(question_counts.index, rotation=45)
-    
-    # Difficulty distribution
-    diff_counts = features_df['difficulty_encoded'].value_counts().sort_index()
-    axes[1, 1].bar(diff_counts.index, diff_counts.values, alpha=0.7, color='orange')
-    axes[1, 1].set_title('Difficulty Distribution')
-    axes[1, 1].set_xlabel('Difficulty Level')
-    
-    # Input vs Output relationship
-    sample_df = features_df.sample(n=min(5000, len(features_df)), random_state=42)
-    axes[1, 2].scatter(sample_df['input_tokens_mistral'], sample_df['actual_output_tokens'], alpha=0.5)
-    axes[1, 2].set_title('Input vs Output Tokens')
-    axes[1, 2].set_xlabel('Input Tokens')
-    axes[1, 2].set_ylabel('Output Tokens')
-    
-    plt.tight_layout()
-    plt.show()
-    
-    print(f"📊 Feature statistics:")
-    print(f"   Input tokens - Mean: {features_df['input_tokens_mistral'].mean():.1f}")
-    print(f"   Output tokens - Mean: {features_df['actual_output_tokens'].mean():.1f}")
-    print(f"   Complexity - Mean: {features_df['instruction_complexity'].mean():.3f}")
-    
-    print(f"🎯 Feature engineering complete! Using Chris's exact specification")
-    
+    print(f"✅ Feature engineering complete for {dataset_name}")
     return features_df
 
-# Apply feature engineering
-df_features = extract_chris_features(df)
+# Apply feature engineering to focus datasets
+engineered_datasets = {}
+focus_datasets = ['Short_Focus', 'Medium_Focus', 'Long_Focus']
+
+for dataset_name in focus_datasets:
+    if dataset_name in filtered_datasets:
+        engineered_datasets[dataset_name] = extract_features_for_dataset(
+            filtered_datasets[dataset_name], dataset_name
+        )
 ```
 
-# Cell 5: Feature Selection and Data Preparation
+# Cell 8: Train Models for Each Dataset
 ```python
-def prepare_chris_modeling_data(df):
-    """Prepare data using Chris's exact feature specification"""
+def train_model_for_dataset(df, dataset_name):
+    """Train models for a specific dataset"""
     
-    # Define target variable
-    target = 'actual_output_tokens'
+    print(f"🎯 Training models for {dataset_name}")
+    print("=" * 50)
     
-    # Chris's exact feature set from the table
+    # Feature selection
     feature_columns = [
-        'input_tokens_mistral',           # Token count via Mistral tokenizer
-        'instruction_len',                # Character length of instruction  
-        'instruction_word_count',         # Number of words
-        'instruction_complexity',         # Composite complexity score
-        'question_type',                  # Instruction type (coded)
-        'difficulty_encoded',             # Query difficulty (coded)
-        'task_category',                  # Task type (coded)
-        'intent',                         # Instruction intent (coded)
-        'knowledge',                      # Required knowledge level (coded)
-        'input_quality_encoded',          # Encoded input quality
-        'response_to_instruction_ratio',  # Output/input token ratio
-        'complexity_length_interaction',  # Complexity × length interaction
-        'contains_code',                  # Code snippet present? (0/1)
-        'questions_count',                # Number of questions
-        'listing_present'                 # List/bullets detected? (0/1)
+        'input_tokens_mistral', 'instruction_len', 'instruction_word_count',
+        'instruction_complexity', 'question_type', 'difficulty_encoded',
+        'task_category', 'intent', 'knowledge', 'input_quality_encoded',
+        'complexity_length_interaction', 'contains_code', 'questions_count',
+        'listing_present'
     ]
     
-    print(f"🎯 Using Chris's exact feature set ({len(feature_columns)} features)")
+    target = 'actual_output_tokens'
     
-    # Create feature matrix
+    # Prepare data
     X = df[feature_columns].copy()
     y = df[target].copy()
     
     # Handle categorical variables
     categorical_columns = ['question_type', 'task_category', 'intent', 'knowledge']
-    
-    # Label encoding for categorical variables
     label_encoders = {}
+    
     for col in categorical_columns:
         if col in X.columns:
             le = LabelEncoder()
             X[col] = le.fit_transform(X[col].astype(str))
             label_encoders[col] = le
-            print(f"✅ Encoded {col}: {len(le.classes_)} categories")
     
-    # Remove any remaining NaN values
+    # Remove NaN values
     mask = ~(X.isnull().any(axis=1) | y.isnull())
     X = X[mask]
     y = y[mask]
     
-    print(f"✅ Prepared data: {X.shape[0]:,} samples, {X.shape[1]} features")
-    print(f"📋 Features: {list(X.columns)}")
-    print(f"🎯 Target statistics (Mistral tokens):")
-    print(f"   Mean: {y.mean():.1f} tokens")
-    print(f"   Std:  {y.std():.1f} tokens")
-    print(f"   Median: {y.median():.1f} tokens")
-    print(f"   Min:  {y.min():.1f} tokens")
-    print(f"   Max:  {y.max():.1f} tokens")
+    print(f"📊 Dataset: {len(X):,} samples, {X.shape[1]} features")
+    print(f"🎯 Target range: {y.min():.0f} - {y.max():.0f} tokens (mean: {y.mean():.1f})")
     
-    return X, y, label_encoders
-
-# Prepare modeling data
-X, y, label_encoders = prepare_chris_modeling_data(df_features)
-
-# Show feature correlations with target
-feature_correlations = X.corrwith(y).abs().sort_values(ascending=False)
-print(f"\n🔗 Feature correlations with output tokens:")
-for feature, corr in feature_correlations.items():
-    print(f"   {feature}: {corr:.3f}")
-```
-
-# Cell 6: Data Splitting
-```python
-# Split data with stratification based on token count
-print("📊 Splitting data...")
-
-# Create stratified split based on target quantiles
-try:
-    y_quantiles = pd.qcut(y, q=5, duplicates='drop')
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42, stratify=y_quantiles
-    )
-except:
-    # Fallback if quantile stratification fails
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42
-    )
-
-print(f"✅ Data split complete:")
-print(f"   Training set: {X_train.shape[0]:,} samples")
-print(f"   Test set: {X_test.shape[0]:,} samples")
-print(f"   Features: {X_train.shape[1]}")
-
-# Show target distribution in train/test
-fig, axes = plt.subplots(1, 2, figsize=(12, 4))
-
-axes[0].hist(y_train, bins=50, alpha=0.7, label='Train', edgecolor='black')
-axes[0].hist(y_test, bins=50, alpha=0.7, label='Test', edgecolor='black')
-axes[0].set_xlabel('Output Token Count (Mistral)')
-axes[0].set_ylabel('Frequency')
-axes[0].set_title('Train/Test Target Distribution')
-axes[0].legend()
-
-axes[1].boxplot([y_train, y_test], labels=['Train', 'Test'])
-axes[1].set_ylabel('Output Token Count (Mistral)')
-axes[1].set_title('Train/Test Target Distribution (Boxplot)')
-
-plt.tight_layout()
-plt.show()
-```
-
-# Cell 7: Random Forest Training
-```python
-print("🌲 Training Random Forest with GridSearch...")
-
-# Define parameter grid
-rf_params = {
-    'n_estimators': [100, 200, 300],
-    'max_depth': [10, 15, 20, None],
-    'min_samples_split': [2, 5, 10],
-    'min_samples_leaf': [1, 2, 4],
-    'max_features': ['sqrt', 'log2', None]
-}
-
-# Initialize model
-rf = RandomForestRegressor(random_state=42, n_jobs=-1)
-
-# Grid search with cross-validation
-rf_grid = GridSearchCV(
-    rf, rf_params, 
-    cv=5, 
-    scoring='neg_mean_absolute_error', 
-    n_jobs=-1, 
-    verbose=1
-)
-
-# Train the model
-rf_grid.fit(X_train, y_train)
-
-# Get best model
-best_rf = rf_grid.best_estimator_
-
-print(f"✅ Random Forest training complete!")
-print(f"🏆 Best parameters: {rf_grid.best_params_}")
-print(f"🎯 Best CV MAE: {-rf_grid.best_score_:.2f} tokens")
-```
-
-# Cell 8: XGBoost Training
-```python
-print("🚀 Training XGBoost with GridSearch...")
-
-# Define parameter grid
-xgb_params = {
-    'n_estimators': [100, 200, 300],
-    'max_depth': [3, 6, 9],
-    'learning_rate': [0.01, 0.1, 0.2],
-    'subsample': [0.8, 0.9, 1.0],
-    'colsample_bytree': [0.8, 0.9, 1.0]
-}
-
-# Initialize model
-xgb_reg = xgb.XGBRegressor(random_state=42, n_jobs=-1)
-
-# Grid search with cross-validation
-xgb_grid = GridSearchCV(
-    xgb_reg, xgb_params, 
-    cv=5, 
-    scoring='neg_mean_absolute_error', 
-    n_jobs=-1, 
-    verbose=1
-)
-
-# Train the model
-xgb_grid.fit(X_train, y_train)
-
-# Get best model
-best_xgb = xgb_grid.best_estimator_
-
-print(f"✅ XGBoost training complete!")
-print(f"🏆 Best parameters: {xgb_grid.best_params_}")
-print(f"🎯 Best CV MAE: {-xgb_grid.best_score_:.2f} tokens")
-```
-
-# Cell 9: Model Evaluation
-```python
-# Evaluate both models
-models = {
-    'Random Forest': best_rf,
-    'XGBoost': best_xgb
-}
-
-results = {}
-
-print("📊 Model Evaluation Results (Chris's Feature Set):")
-print("=" * 60)
-
-for name, model in models.items():
-    # Predictions
-    train_pred = model.predict(X_train)
-    test_pred = model.predict(X_test)
+    # Split data
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
     
-    # Metrics
-    train_mae = mean_absolute_error(y_train, train_pred)
-    test_mae = mean_absolute_error(y_test, test_pred)
-    train_rmse = np.sqrt(mean_squared_error(y_train, train_pred))
-    test_rmse = np.sqrt(mean_squared_error(y_test, test_pred))
-    train_r2 = r2_score(y_train, train_pred)
-    test_r2 = r2_score(y_test, test_pred)
+    # Train Random Forest
+    rf = RandomForestRegressor(n_estimators=200, max_depth=15, random_state=42, n_jobs=-1)
+    rf.fit(X_train, y_train)
     
-    results[name] = {
-        'model': model,
-        'train_mae': train_mae,
-        'test_mae': test_mae,
-        'train_rmse': train_rmse,
-        'test_rmse': test_rmse,
-        'train_r2': train_r2,
-        'test_r2': test_r2,
-        'train_pred': train_pred,
-        'test_pred': test_pred
-    }
+    # Train XGBoost
+    xgb_reg = xgb.XGBRegressor(n_estimators=200, max_depth=6, learning_rate=0.1, random_state=42, n_jobs=-1)
+    xgb_reg.fit(X_train, y_train)
     
-    print(f"\n🤖 {name} Results:")
-    print(f"   Train MAE: {train_mae:.2f} | Test MAE: {test_mae:.2f} tokens")
-    print(f"   Train RMSE: {train_rmse:.2f} | Test RMSE: {test_rmse:.2f} tokens")
-    print(f"   Train R²: {train_r2:.3f} | Test R²: {test_r2:.3f}")
+    # Evaluate models
+    models = {'Random Forest': rf, 'XGBoost': xgb_reg}
+    results = {}
     
-    # Calculate percentage within different error ranges
-    errors = np.abs(y_test - test_pred)
-    within_5 = (errors <= 5).mean() * 100
-    within_10 = (errors <= 10).mean() * 100
-    within_20 = (errors <= 20).mean() * 100
-    within_50 = (errors <= 50).mean() * 100
-    
-    print(f"   Predictions within ±5 tokens: {within_5:.1f}%")
-    print(f"   Predictions within ±10 tokens: {within_10:.1f}%")
-    print(f"   Predictions within ±20 tokens: {within_20:.1f}%")
-    print(f"   Predictions within ±50 tokens: {within_50:.1f}%")
-
-# Identify best model
-best_model_name = min(results.keys(), key=lambda x: results[x]['test_mae'])
-best_model = results[best_model_name]['model']
-
-print(f"\n🏆 Best Model: {best_model_name}")
-print(f"   Test MAE: {results[best_model_name]['test_mae']:.2f} tokens")
-print(f"   Using Chris's exact feature specification!")
-```
-
-# Cell 10: Model Comparison Visualizations
-```python
-# Create comprehensive comparison plots
-fig, axes = plt.subplots(2, 3, figsize=(18, 12))
-fig.suptitle('🏆 Token Predictor - Chris\'s Feature Set Performance', fontsize=16, fontweight='bold')
-
-# 1. MAE Comparison
-model_names = list(results.keys())
-train_maes = [results[name]['train_mae'] for name in model_names]
-test_maes = [results[name]['test_mae'] for name in model_names]
-
-x = np.arange(len(model_names))
-width = 0.35
-
-axes[0, 0].bar(x - width/2, train_maes, width, label='Train MAE', alpha=0.8, color='skyblue')
-axes[0, 0].bar(x + width/2, test_maes, width, label='Test MAE', alpha=0.8, color='lightcoral')
-axes[0, 0].set_xlabel('Model')
-axes[0, 0].set_ylabel('Mean Absolute Error (tokens)')
-axes[0, 0].set_title('MAE Comparison (Mistral Tokens)')
-axes[0, 0].set_xticks(x)
-axes[0, 0].set_xticklabels(model_names)
-axes[0, 0].legend()
-axes[0, 0].grid(True, alpha=0.3)
-
-# 2. R² Comparison
-train_r2s = [results[name]['train_r2'] for name in model_names]
-test_r2s = [results[name]['test_r2'] for name in model_names]
-
-axes[0, 1].bar(x - width/2, train_r2s, width, label='Train R²', alpha=0.8, color='lightgreen')
-axes[0, 1].bar(x + width/2, test_r2s, width, label='Test R²', alpha=0.8, color='gold')
-axes[0, 1].set_xlabel('Model')
-axes[0, 1].set_ylabel('R² Score')
-axes[0, 1].set_title('R² Score Comparison')
-axes[0, 1].set_xticks(x)
-axes[0, 1].set_xticklabels(model_names)
-axes[0, 1].legend()
-axes[0, 1].grid(True, alpha=0.3)
-
-# 3. Prediction vs Actual (Best model)
-best_results = results[best_model_name]
-
-axes[0, 2].scatter(y_test, best_results['test_pred'], alpha=0.6, color='darkblue')
-axes[0, 2].plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'r--', lw=2)
-axes[0, 2].set_xlabel('Actual Tokens (Mistral)')
-axes[0, 2].set_ylabel('Predicted Tokens')
-axes[0, 2].set_title(f'Predictions vs Actual - {best_model_name}')
-axes[0, 2].grid(True, alpha=0.3)
-
-# 4. Residuals Plot
-residuals = y_test - best_results['test_pred']
-axes[1, 0].scatter(best_results['test_pred'], residuals, alpha=0.6, color='purple')
-axes[1, 0].axhline(y=0, color='r', linestyle='--')
-axes[1, 0].set_xlabel('Predicted Values')
-axes[1, 0].set_ylabel('Residuals (tokens)')
-axes[1, 0].set_title(f'Residuals Plot - {best_model_name}')
-axes[1, 0].grid(True, alpha=0.3)
-
-# 5. Feature Importance (for best model)
-if hasattr(best_results['model'], 'feature_importances_'):
-    importances = best_results['model'].feature_importances_
-    feature_names = X.columns
-    
-    # Sort by importance
-    indices = np.argsort(importances)[::-1][:10]  # Top 10
-    
-    axes[1, 1].barh(range(len(indices)), importances[indices], color='orange', alpha=0.8)
-    axes[1, 1].set_yticks(range(len(indices)))
-    axes[1, 1].set_yticklabels([feature_names[i] for i in indices])
-    axes[1, 1].set_xlabel('Feature Importance')
-    axes[1, 1].set_title(f'Top 10 Features - {best_model_name}')
-    axes[1, 1].grid(True, alpha=0.3)
-
-# 6. Error Distribution
-axes[1, 2].hist(residuals, bins=50, alpha=0.7, edgecolor='black', color='lightseagreen')
-axes[1, 2].axvline(x=0, color='r', linestyle='--')
-axes[1, 2].set_xlabel('Prediction Error (tokens)')
-axes[1, 2].set_ylabel('Frequency')
-axes[1, 2].set_title('Error Distribution')
-axes[1, 2].grid(True, alpha=0.3)
-
-plt.tight_layout()
-plt.show()
-```
-
-# Cell 11: Model Export
-```python
-# Export the model using Chris's feature specification
-print("💾 Exporting model with Chris's feature specification...")
-
-# Create export directory
-import os
-os.makedirs('model_exports', exist_ok=True)
-
-# 1. Export the best model
-with open('model_exports/chris_token_predictor.pkl', 'wb') as f:
-    pickle.dump(best_model, f)
-print(f"✅ Best model ({best_model_name}) saved")
-
-# 2. Export label encoders
-with open('model_exports/chris_label_encoders.pkl', 'wb') as f:
-    pickle.dump(label_encoders, f)
-print(f"✅ Label encoders saved")
-
-# 3. Export feature list
-feature_list = X.columns.tolist()
-with open('model_exports/chris_feature_list.pkl', 'wb') as f:
-    pickle.dump(feature_list, f)
-print(f"✅ Feature list saved")
-
-# 4. Export metadata
-metadata = {
-    'model_name': best_model_name,
-    'model_type': type(best_model).__name__,
-    'test_mae_tokens': results[best_model_name]['test_mae'],
-    'test_rmse_tokens': results[best_model_name]['test_rmse'],
-    'test_r2': results[best_model_name]['test_r2'],
-    'tokenizer': 'mistral_v3',
-    'n_features': len(feature_list),
-    'features': feature_list,
-    'magpie_metadata_used': [col for col in feature_list if col in ['difficulty_encoded', 'task_category', 'intent', 'knowledge', 'input_quality_encoded']],
-    'training_samples': len(X_train),
-    'test_samples': len(X_test),
-    'hyperparameters': best_model.get_params(),
-    'dataset': 'Magpie-Llama-3.1-Pro-DPO-100k-v0.1',
-    'feature_specification': 'chris_exact_spec'
-}
-
-with open('model_exports/chris_model_metadata.pkl', 'wb') as f:
-    pickle.dump(metadata, f)
-print(f"✅ Model metadata saved")
-
-# 5. Export both models for comparison
-all_models = {name: results[name]['model'] for name in results.keys()}
-with open('model_exports/chris_all_models.pkl', 'wb') as f:
-    pickle.dump(all_models, f)
-print(f"✅ All models saved")
-
-print(f"\n📁 Export Summary (Chris's Specification):")
-print(f"   📂 model_exports/")
-print(f"   ├── chris_token_predictor.pkl        (Best model)")
-print(f"   ├── chris_label_encoders.pkl         (Categorical encoders)")
-print(f"   ├── chris_feature_list.pkl           (Feature names)")
-print(f"   ├── chris_model_metadata.pkl         (Model metadata)")
-print(f"   └── chris_all_models.pkl             (All trained models)")
-```
-
-# Cell 12: Production Integration Example
-```python
-# Demonstrate production usage with Chris's feature specification
-print("🚀 Production Integration Example (Chris's Specification)")
-print("=" * 60)
-
-def load_chris_production_model():
-    """Load the exported model with Chris's feature specification"""
-    
-    with open('model_exports/chris_token_predictor.pkl', 'rb') as f:
-        model = pickle.load(f)
-    
-    with open('model_exports/chris_label_encoders.pkl', 'rb') as f:
-        encoders = pickle.load(f)
-    
-    with open('model_exports/chris_feature_list.pkl', 'rb') as f:
-        features = pickle.load(f)
+    for name, model in models.items():
+        train_pred = model.predict(X_train)
+        test_pred = model.predict(X_test)
         
-    with open('model_exports/chris_model_metadata.pkl', 'rb') as f:
-        metadata = pickle.load(f)
+        train_mae = mean_absolute_error(y_train, train_pred)
+        test_mae = mean_absolute_error(y_test, test_pred)
+        test_r2 = r2_score(y_test, test_pred)
+        
+        # Calculate accuracy within ranges
+        errors = np.abs(y_test - test_pred)
+        within_5 = (errors <= 5).mean() * 100
+        within_10 = (errors <= 10).mean() * 100
+        within_20 = (errors <= 20).mean() * 100
+        
+        results[name] = {
+            'model': model,
+            'train_mae': train_mae,
+            'test_mae': test_mae,
+            'test_r2': test_r2,
+            'within_5': within_5,
+            'within_10': within_10,
+            'within_20': within_20,
+            'test_pred': test_pred
+        }
+        
+        print(f"\n🤖 {name} Results:")
+        print(f"   Train MAE: {train_mae:.2f} | Test MAE: {test_mae:.2f} tokens")
+        print(f"   Test R²: {test_r2:.3f}")
+        print(f"   Within ±5 tokens: {within_5:.1f}%")
+        print(f"   Within ±10 tokens: {within_10:.1f}%")
+        print(f"   Within ±20 tokens: {within_20:.1f}%")
     
-    return model, encoders, features, metadata
+    # Get best model
+    best_model_name = min(results.keys(), key=lambda x: results[x]['test_mae'])
+    best_model = results[best_model_name]['model']
+    
+    print(f"\n🏆 Best Model for {dataset_name}: {best_model_name}")
+    print(f"   Test MAE: {results[best_model_name]['test_mae']:.2f} tokens")
+    
+    return {
+        'dataset_name': dataset_name,
+        'results': results,
+        'best_model': best_model,
+        'best_model_name': best_model_name,
+        'label_encoders': label_encoders,
+        'feature_columns': feature_columns,
+        'X_test': X_test,
+        'y_test': y_test
+    }
 
-def predict_tokens_chris_spec(instruction, model, encoders, feature_list, 
-                            difficulty='medium', task_category='information_seeking', 
-                            intent='informational', knowledge='intermediate'):
-    """Predict tokens using Chris's exact feature specification"""
+# Train models for each focus dataset
+trained_models = {}
+for dataset_name in ['Short_Focus', 'Medium_Focus', 'Long_Focus']:
+    if dataset_name in engineered_datasets:
+        trained_models[dataset_name] = train_model_for_dataset(
+            engineered_datasets[dataset_name], dataset_name
+        )
+```
+
+# Cell 9: Model Comparison and Analysis
+```python
+def compare_models_across_datasets(trained_models):
+    """Compare model performance across different datasets"""
     
-    # Initialize Mistral tokenizer
+    print("📊 MODEL COMPARISON ACROSS DATASETS")
+    print("=" * 60)
+    
+    # Create comparison table
+    comparison_data = []
+    for dataset_name, model_info in trained_models.items():
+        best_results = model_info['results'][model_info['best_model_name']]
+        comparison_data.append({
+            'Dataset': dataset_name,
+            'Best Model': model_info['best_model_name'],
+            'Test MAE': best_results['test_mae'],
+            'Test R²': best_results['test_r2'],
+            'Within ±5': best_results['within_5'],
+            'Within ±10': best_results['within_10'],
+            'Within ±20': best_results['within_20'],
+            'Samples': len(model_info['X_test']) * 5  # Approximate total samples
+        })
+    
+    comparison_df = pd.DataFrame(comparison_data)
+    print("\n🏆 PERFORMANCE COMPARISON:")
+    print(comparison_df.to_string(index=False, float_format='%.2f'))
+    
+    # Visualize comparison
+    fig, axes = plt.subplots(2, 2, figsize=(15, 10))
+    
+    # MAE comparison
+    axes[0, 0].bar(comparison_df['Dataset'], comparison_df['Test MAE'], alpha=0.7, color='lightcoral')
+    axes[0, 0].set_title('Test MAE by Dataset')
+    axes[0, 0].set_ylabel('MAE (tokens)')
+    axes[0, 0].tick_params(axis='x', rotation=45)
+    
+    # R² comparison
+    axes[0, 1].bar(comparison_df['Dataset'], comparison_df['Test R²'], alpha=0.7, color='lightgreen')
+    axes[0, 1].set_title('Test R² by Dataset')
+    axes[0, 1].set_ylabel('R² Score')
+    axes[0, 1].tick_params(axis='x', rotation=45)
+    
+    # Accuracy within ±10 tokens
+    axes[1, 0].bar(comparison_df['Dataset'], comparison_df['Within ±10'], alpha=0.7, color='skyblue')
+    axes[1, 0].set_title('Accuracy Within ±10 Tokens')
+    axes[1, 0].set_ylabel('Percentage (%)')
+    axes[1, 0].tick_params(axis='x', rotation=45)
+    
+    # Sample count
+    axes[1, 1].bar(comparison_df['Dataset'], comparison_df['Samples'], alpha=0.7, color='gold')
+    axes[1, 1].set_title('Dataset Sizes')
+    axes[1, 1].set_ylabel('Number of Samples')
+    axes[1, 1].tick_params(axis='x', rotation=45)
+    
+    plt.tight_layout()
+    plt.show()
+    
+    return comparison_df
+
+# Compare models
+comparison_results = compare_models_across_datasets(trained_models)
+```
+
+# Cell 10: Export Best Models
+```python
+def export_models(trained_models):
+    """Export the best models for each dataset"""
+    
+    print("💾 EXPORTING MODELS")
+    print("=" * 30)
+    
+    import os
+    os.makedirs('model_exports', exist_ok=True)
+    
+    for dataset_name, model_info in trained_models.items():
+        # Create dataset-specific directory
+        dataset_dir = f'model_exports/{dataset_name.lower()}'
+        os.makedirs(dataset_dir, exist_ok=True)
+        
+        # Export best model
+        model_file = f'{dataset_dir}/token_predictor.pkl'
+        with open(model_file, 'wb') as f:
+            pickle.dump(model_info['best_model'], f)
+        
+        # Export label encoders
+        encoders_file = f'{dataset_dir}/label_encoders.pkl'
+        with open(encoders_file, 'wb') as f:
+            pickle.dump(model_info['label_encoders'], f)
+        
+        # Export feature list
+        features_file = f'{dataset_dir}/feature_list.pkl'
+        with open(features_file, 'wb') as f:
+            pickle.dump(model_info['feature_columns'], f)
+        
+        # Export metadata
+        best_results = model_info['results'][model_info['best_model_name']]
+        metadata = {
+            'dataset_name': dataset_name,
+            'model_type': model_info['best_model_name'],
+            'test_mae': best_results['test_mae'],
+            'test_r2': best_results['test_r2'],
+            'within_10_pct': best_results['within_10'],
+            'feature_count': len(model_info['feature_columns']),
+            'features': model_info['feature_columns']
+        }
+        
+        metadata_file = f'{dataset_dir}/metadata.pkl'
+        with open(metadata_file, 'wb') as f:
+            pickle.dump(metadata, f)
+        
+        print(f"✅ Exported {dataset_name} model (MAE: {best_results['test_mae']:.2f})")
+    
+    print(f"\n📁 Models exported to model_exports/ directory")
+
+# Export models
+export_models(trained_models)
+```
+
+# Cell 11: Query Testing Interface
+```python
+def create_query_tester(trained_models):
+    """Create an interface to test queries against different models"""
+    
     from mistral_common.tokens.tokenizers.mistral import MistralTokenizer
-    mistral_tokenizer = MistralTokenizer.v3()
+    from mistral_common.protocol.instruct.messages import UserMessage
+    from mistral_common.protocol.instruct.request import ChatCompletionRequest
     
-    # Feature engineering (Chris's exact specification)
-    features_dict = {}
+    # Load tokenizer
+    tokenizer = MistralTokenizer.v3()
     
-    # 1. input_tokens_mistral (Token count via Mistral tokenizer)
-    features_dict['input_tokens_mistral'] = len(mistral_tokenizer.encode(instruction))
+    def count_tokens(text):
+        if pd.isna(text) or text == "":
+            return 0
+        req = ChatCompletionRequest(messages=[UserMessage(content=str(text))])
+        enc = tokenizer.encode_chat_completion(req)
+        return len(enc.tokens)
     
-    # 2. instruction_len (Character length of instruction)
-    features_dict['instruction_len'] = len(instruction)
-    
-    # 3. instruction_word_count (Number of words)
-    features_dict['instruction_word_count'] = len(instruction.split())
-    
-    # 4. instruction_complexity (Composite complexity score)
-    words = instruction.split()
-    if words:
-        unique_words = len(set(words))
-        vocab_diversity = unique_words / len(words)
-        avg_word_length = np.mean([len(word) for word in words])
-        punctuation_count = len(re.findall(r'[!@#$%^&*(),.?":{}|<>]', instruction))
-        punct_density = punctuation_count / len(instruction) if len(instruction) > 0 else 0
+    def predict_tokens_for_query(query, difficulty='medium', task_category='Information seeking', 
+                                intent='informational', knowledge='intermediate'):
+        """Predict tokens for a query using all trained models"""
         
-        technical_patterns = [
-            r'\bfunction\b', r'\bclass\b', r'\bimport\b', r'\bdef\b', r'\breturn\b',
-            r'\bapi\b', r'\bdatabase\b', r'\balgorithm\b', r'\bmodel\b', r'\btraining\b',
-            r'\btensor\b', r'\bnumpy\b', r'\bpandas\b', r'\bsklearn\b', r'\bpython\b',
-            r'\bcode\b', r'\bvariable\b', r'\bloop\b', r'\barray\b', r'\blist\b'
-        ]
-        technical_count = sum(len(re.findall(pattern, instruction.lower())) for pattern in technical_patterns)
-        tech_density = technical_count / len(words)
+        print(f"🧪 TESTING QUERY:")
+        print(f"   Query: '{query[:80]}{'...' if len(query) > 80 else ''}'")
+        print(f"   Metadata: {difficulty} | {task_category} | {knowledge}")
+        print(f"   Input tokens: {count_tokens(query)}")
+        print()
         
-        complexity = (vocab_diversity * 0.3 + 
-                     (min(avg_word_length, 15) / 15) * 0.2 + 
-                     min(punct_density, 0.1) * 2.0 * 0.2 + 
-                     min(tech_density, 0.5) * 2.0 * 0.3)
-        features_dict['instruction_complexity'] = min(complexity, 1.0)
-    else:
-        features_dict['instruction_complexity'] = 0
-    
-    # 5. question_type (Instruction type - coded)
-    text_lower = instruction.lower()
-    if any(word in text_lower for word in ['what', 'define', 'explain', 'describe']):
-        question_type = 'explanation'
-    elif any(word in text_lower for word in ['how', 'tutorial', 'guide', 'steps']):
-        question_type = 'how_to'
-    elif any(word in text_lower for word in ['code', 'function', 'implement', 'write']):
-        question_type = 'coding'
-    elif any(word in text_lower for word in ['debug', 'fix', 'error', 'problem']):
-        question_type = 'debugging'
-    elif any(word in text_lower for word in ['why', 'reason', 'because']):
-        question_type = 'reasoning'
-    elif any(word in text_lower for word in ['list', 'enumerate', 'examples']):
-        question_type = 'listing'
-    elif any(word in text_lower for word in ['compare', 'difference', 'versus']):
-        question_type = 'comparison'
-    elif text_lower.strip().endswith('?'):
-        question_type = 'question'
-    else:
-        question_type = 'statement'
-    
-    features_dict['question_type'] = question_type
-    
-    # 6. difficulty_encoded (Query difficulty - coded)
-    difficulty_map = {'easy': 1, 'medium': 2, 'hard': 3}
-    features_dict['difficulty_encoded'] = difficulty_map.get(difficulty, 2)
-    
-    # 7. task_category (Task type - coded)
-    features_dict['task_category'] = task_category
-    
-    # 8. intent (Instruction intent - coded)
-    features_dict['intent'] = intent
-    
-    # 9. knowledge (Required knowledge level - coded)
-    features_dict['knowledge'] = knowledge
-    
-    # 10. input_quality_encoded (Encoded input quality)
-    # Calculate based on instruction characteristics
-    score = 2  # Base score
-    if features_dict['instruction_word_count'] > 10:
-        score += 0.5
-    if features_dict['instruction_word_count'] > 20:
-        score += 0.5
-    if features_dict['instruction_complexity'] > 0.3:
-        score += 0.5
-    if features_dict['instruction_complexity'] > 0.6:
-        score += 0.5
-    if instruction and instruction[0].isupper():
-        score += 0.3
-    if '?' in instruction or '!' in instruction:
-        score += 0.2
-    features_dict['input_quality_encoded'] = min(4, max(1, int(score)))
-    
-    # 11. response_to_instruction_ratio (Output/input token ratio)
-    # Use historical average ratio based on question type
-    historical_ratios = {
-        'explanation': 2.5, 'how_to': 3.5, 'coding': 4.5, 'debugging': 3.0,
-        'reasoning': 3.2, 'listing': 2.8, 'comparison': 3.8, 'question': 2.0,
-        'statement': 1.8, 'unknown': 2.5
-    }
-    features_dict['response_to_instruction_ratio'] = historical_ratios.get(question_type, 2.5)
-    
-    # 12. complexity_length_interaction (Complexity × length interaction)
-    features_dict['complexity_length_interaction'] = (
-        features_dict['instruction_complexity'] * features_dict['instruction_len'] / 1000
-    )
-    
-    # 13. contains_code (Code snippet present? 0/1)
-    code_indicators = [
-        r'```', r'`[^`]+`', r'\bdef\s+\w+\(', r'\bclass\s+\w+',
-        r'\bimport\s+\w+', r'\bfrom\s+\w+\s+import',
-        r'print\s*\(', r'return\s+\w+', r'if\s+\w+.*:',
-        r'for\s+\w+\s+in', r'while\s+\w+.*:'
-    ]
-    features_dict['contains_code'] = int(any(re.search(pattern, instruction) for pattern in code_indicators))
-    
-    # 14. questions_count (Number of questions)
-    features_dict['questions_count'] = len(re.findall(r'\?', instruction))
-    
-    # 15. listing_present (List/bullets detected? 0/1)
-    listing_patterns = [
-        r'^\s*[-*+]\s+', r'^\s*\d+\.\s+', r'^\s*\w+\)\s+',
-        r'\b(first|second|third|1\.|2\.|3\.)', r'(steps|points|items|list)',
-        r'enumerate', r'bullet'
-    ]
-    features_dict['listing_present'] = int(any(re.search(pattern, instruction, re.MULTILINE | re.IGNORECASE) for pattern in listing_patterns))
-    
-    # Create feature vector in correct order
-    feature_vector = []
-    for feature_name in feature_list:
-        if feature_name in ['question_type', 'task_category', 'intent', 'knowledge']:
-            # Encode categorical variables
-            if feature_name in encoders:
-                try:
-                    value = features_dict.get(feature_name, 'unknown')
-                    encoded_value = encoders[feature_name].transform([str(value)])[0]
-                except:
-                    encoded_value = 0  # Default for unknown categories
+        # Feature extraction for query
+        def extract_query_features(query):
+            features = {}
+            
+            # Basic features
+            features['input_tokens_mistral'] = count_tokens(query)
+            features['instruction_len'] = len(query)
+            features['instruction_word_count'] = len(query.split())
+            
+            # Complexity
+            words = query.split()
+            if words:
+                unique_words = len(set(words))
+                vocab_div = unique_words / len(words)
+                avg_word_len = np.mean([len(w) for w in words])
+                punct_den = len(re.findall(r'[!@#$%^&*(),.?":{}|<>]', query)) / len(query)
+                tech_patterns = [r'\bcode\b', r'\bfunction\b', r'\bapi\b', r'\bmodel\b']
+                tech_count = sum(len(re.findall(p, query.lower())) for p in tech_patterns)
+                tech_den = tech_count / len(words)
+                complexity = (vocab_div * 0.3 + (min(avg_word_len, 15) / 15) * 0.2 + 
+                            min(punct_den, 0.1) * 2.0 * 0.2 + min(tech_den, 0.5) * 2.0 * 0.3)
+                features['instruction_complexity'] = min(complexity, 1.0)
             else:
-                encoded_value = 0
-            feature_vector.append(encoded_value)
-        elif feature_name in features_dict:
-            feature_vector.append(features_dict[feature_name])
-        else:
-            feature_vector.append(0)  # Default value
+                features['instruction_complexity'] = 0
+            
+            # Question type
+            q_lower = query.lower()
+            if any(w in q_lower for w in ['what','explain','describe']):
+                features['question_type'] = 'explanation'
+            elif any(w in q_lower for w in ['how','guide','steps']):
+                features['question_type'] = 'how_to'
+            elif any(w in q_lower for w in ['code','implement','write']):
+                features['question_type'] = 'coding'
+            elif any(w in q_lower for w in ['debug','fix','error']):
+                features['question_type'] = 'debugging'
+            elif any(w in q_lower for w in ['why','reason']):
+                features['question_type'] = 'reasoning'
+            elif q_lower.strip().endswith('?'):
+                features['question_type'] = 'question'
+            else:
+                features['question_type'] = 'statement'
+            
+            # Metadata
+            features['difficulty_encoded'] = {'easy': 1, 'medium': 2, 'hard': 3}.get(difficulty, 2)
+            features['task_category'] = task_category
+            features['intent'] = intent
+            features['knowledge'] = knowledge
+            
+            # Quality
+            quality_score = 2
+            if features['instruction_word_count'] > 10: quality_score += 0.5
+            if features['instruction_complexity'] > 0.3: quality_score += 0.5
+            if query and query[0].isupper(): quality_score += 0.3
+            features['input_quality_encoded'] = min(4, max(1, int(quality_score)))
+            
+            # Other features
+            features['complexity_length_interaction'] = features['instruction_complexity'] * features['instruction_len'] / 1000
+            features['contains_code'] = int(any(re.search(p, query) for p in [r'```', r'\bdef\b', r'\bclass\b']))
+            features['questions_count'] = query.count('?')
+            features['listing_present'] = int(any(re.search(p, query, re.MULTILINE) for p in [r'^\s*[-*+]\s+', r'^\s*\d+\.\s+']))
+            
+            return features
+        
+        query_features = extract_query_features(query)
+        
+        # Test with each model
+        predictions = {}
+        for dataset_name, model_info in trained_models.items():
+            try:
+                # Create feature vector
+                feature_vector = []
+                for feature_name in model_info['feature_columns']:
+                    if feature_name in ['question_type', 'task_category', 'intent', 'knowledge']:
+                        # Encode categorical
+                        if feature_name in model_info['label_encoders']:
+                            try:
+                                value = query_features.get(feature_name, 'unknown')
+                                encoded_value = model_info['label_encoders'][feature_name].transform([str(value)])[0]
+                            except:
+                                encoded_value = 0
+                        else:
+                            encoded_value = 0
+                        feature_vector.append(encoded_value)
+                    else:
+                        feature_vector.append(query_features.get(feature_name, 0))
+                
+                # Make prediction
+                prediction = model_info['best_model'].predict([feature_vector])[0]
+                predictions[dataset_name] = max(1, int(round(prediction)))
+                
+            except Exception as e:
+                predictions[dataset_name] = f"Error: {e}"
+        
+        # Display results
+        print("🎯 PREDICTIONS:")
+        for dataset_name, prediction in predictions.items():
+            if isinstance(prediction, int):
+                model_mae = trained_models[dataset_name]['results'][trained_models[dataset_name]['best_model_name']]['test_mae']
+                print(f"   {dataset_name:12}: {prediction:4d} tokens (±{model_mae:.1f} MAE)")
+            else:
+                print(f"   {dataset_name:12}: {prediction}")
+        
+        print()
+        return predictions
     
-    # Make prediction
-    prediction = model.predict([feature_vector])[0]
-    return max(1, int(round(prediction))), features_dict['input_tokens_mistral']
+    return predict_tokens_for_query
 
-# Test the production model
-try:
-    prod_model, prod_encoders, prod_features, prod_metadata = load_chris_production_model()
+# Create query tester
+predict_query = create_query_tester(trained_models)
+```
+
+# Cell 12: Test Example Queries
+```python
+def test_example_queries(predict_function):
+    """Test various example queries to see how models perform"""
     
-    print(f"📊 Model Info:")
-    print(f"   Model: {prod_metadata['model_name']} ({prod_metadata['model_type']})")
-    print(f"   MAE: {prod_metadata['test_mae_tokens']:.2f} tokens")
-    print(f"   R²: {prod_metadata['test_r2']:.3f}")
-    print(f"   Features: {prod_metadata['n_features']}")
-    print(f"   Feature Spec: {prod_metadata['feature_specification']}")
+    print("🧪 TESTING EXAMPLE QUERIES")
+    print("=" * 60)
     
-    # Test examples
     test_cases = [
         {
-            'instruction': "What is machine learning?",
+            'query': "What is Python?",
             'difficulty': 'easy',
-            'task_category': 'information_seeking',
+            'task_category': 'Information seeking',
             'intent': 'informational',
-            'knowledge': 'basic'
+            'knowledge': 'basic',
+            'expected_range': 'Short (20-60 tokens)'
         },
         {
-            'instruction': "Implement a binary search algorithm in Python with error handling",
-            'difficulty': 'hard',
-            'task_category': 'coding',
-            'intent': 'implementation',
-            'knowledge': 'advanced'
-        },
-        {
-            'instruction': "Explain the mathematical foundations of transformers and attention mechanisms",
-            'difficulty': 'hard',
-            'task_category': 'reasoning',
-            'intent': 'educational',
-            'knowledge': 'expert'
-        },
-        {
-            'instruction': "How do I debug this Python error: KeyError?",
+            'query': "How do I sort a list in Python?",
             'difficulty': 'medium',
-            'task_category': 'coding',
+            'task_category': 'Coding & Debugging',
+            'intent': 'instructional',
+            'knowledge': 'intermediate',
+            'expected_range': 'Medium (80-150 tokens)'
+        },
+        {
+            'query': "Implement a binary search algorithm in Python with comprehensive error handling and optimization",
+            'difficulty': 'hard',
+            'task_category': 'Coding & Debugging',
+            'intent': 'implementation',
+            'knowledge': 'advanced',
+            'expected_range': 'Long (300-500 tokens)'
+        },
+        {
+            'query': "Explain the mathematical foundations of transformer architecture including attention mechanisms",
+            'difficulty': 'hard',
+            'task_category': 'Math',
+            'intent': 'educational',
+            'knowledge': 'expert',
+            'expected_range': 'Very Long (400-600 tokens)'
+        },
+        {
+            'query': "Hi there! How are you?",
+            'difficulty': 'easy',
+            'task_category': 'Information seeking',
+            'intent': 'conversational',
+            'knowledge': 'basic',
+            'expected_range': 'Very Short (10-30 tokens)'
+        },
+        {
+            'query': "Debug this error: AttributeError: 'NoneType' object has no attribute 'split'",
+            'difficulty': 'medium',
+            'task_category': 'Coding & Debugging',
             'intent': 'problem_solving',
-            'knowledge': 'intermediate'
+            'knowledge': 'intermediate',
+            'expected_range': 'Medium (100-200 tokens)'
         }
     ]
     
-    print(f"\n🧪 Testing Chris's Feature Specification Model:")
     for i, test_case in enumerate(test_cases, 1):
-        predicted_tokens, input_tokens = predict_tokens_chris_spec(
-            test_case['instruction'], prod_model, prod_encoders, prod_features,
-            test_case['difficulty'], test_case['task_category'], 
-            test_case['intent'], test_case['knowledge']
+        print(f"\n{'='*20} TEST CASE {i} {'='*20}")
+        print(f"Expected range: {test_case['expected_range']}")
+        
+        predictions = predict_function(
+            test_case['query'],
+            test_case['difficulty'],
+            test_case['task_category'],
+            test_case['intent'],
+            test_case['knowledge']
         )
         
-        print(f"\n   {i}. Instruction: '{test_case['instruction'][:60]}...'")
-        print(f"      Metadata: {test_case['difficulty']} | {test_case['task_category']} | {test_case['knowledge']}")
-        print(f"      → Input: {input_tokens} tokens | Predicted output: {predicted_tokens} tokens")
-    
-    print("\n✅ Chris's specification model test successful!")
-    print("🎯 Ready for integration with query router system!")
-    
-except Exception as e:
-    print(f"❌ Production model test failed: {e}")
-    print("Make sure to run the export cell first!")
+        # Analysis
+        prediction_values = [p for p in predictions.values() if isinstance(p, int)]
+        if prediction_values:
+            avg_prediction = np.mean(prediction_values)
+            std_prediction = np.std(prediction_values)
+            print(f"📊 Prediction Summary:")
+            print(f"   Average: {avg_prediction:.1f} tokens")
+            print(f"   Std Dev: {std_prediction:.1f} tokens")
+            print(f"   Range: {min(prediction_values)} - {max(prediction_values)} tokens")
+
+# Test example queries
+test_example_queries(predict_query)
 ```
 
-# Cell 13: Final Performance Analysis & Summary
+# Cell 13: Interactive Query Testing
 ```python
-print("📈 CHRIS'S FEATURE SPECIFICATION - FINAL ANALYSIS")
-print("=" * 70)
-
-# Performance summary
-best_result = results[best_model_name]
-
-print(f"🏆 PRODUCTION MODEL SUMMARY:")
-print(f"   Dataset: Magpie-Llama-3.1-Pro-DPO-100k-v0.1")
-print(f"   Tokenizer: Mistral v3 (reliable)")
-print(f"   Best Model: {best_model_name}")
-print(f"   Training Samples: {len(X_train):,}")
-print(f"   Test Samples: {len(X_test):,}")
-print(f"   Feature Specification: Chris's Exact Table")
-
-print(f"\n📊 PERFORMANCE METRICS:")
-print(f"   Test MAE: {best_result['test_mae']:.2f} tokens")
-print(f"   Test RMSE: {best_result['test_rmse']:.2f} tokens")
-print(f"   Test R²: {best_result['test_r2']:.3f}")
-
-# Calculate improvement estimates
-baseline_mae = 25.0  # Typical word-count baseline
-improvement = ((baseline_mae - best_result['test_mae']) / baseline_mae) * 100
-
-print(f"\n🎯 PERFORMANCE IMPROVEMENTS:")
-print(f"   Improvement over baseline: {improvement:.1f}%")
-print(f"   Variance explained: {best_result['test_r2']:.1%}")
-
-print(f"\n🔧 CHRIS'S FEATURE SET:")
-print(f"   Total features: {len(feature_list)}")
-print(f"   Features used: {feature_list}")
-
-print(f"\n🚀 PRODUCTION READINESS:")
-print(f"   ✅ Mistral tokenizer integration (no fallback)")
-print(f"   ✅ Chris's exact feature specification")
-print(f"   ✅ Rich metadata utilization")
-print(f"   ✅ Production inference pipeline")
-print(f"   ✅ Consistent with query router system")
-
-print(f"\n💡 EXPECTED PRODUCTION PERFORMANCE:")
-errors = np.abs(y_test - best_result['test_pred'])
-within_10_actual = (errors <= 10).mean() * 100
-within_20_actual = (errors <= 20).mean() * 100
-print(f"   {within_10_actual:.0f}% of predictions within ±10 tokens")
-print(f"   {within_20_actual:.0f}% of predictions within ±20 tokens")
-print(f"   Average error: ±{best_result['test_mae']:.0f} tokens")
-
-# Feature importance summary
-if hasattr(best_model, 'feature_importances_'):
-    print(f"\n🔍 TOP 5 MOST IMPORTANT FEATURES:")
-    feature_importance_df = pd.DataFrame({
-        'Feature': X.columns,
-        'Importance': best_model.feature_importances_
-    }).sort_values('Importance', ascending=False)
+def interactive_query_testing(predict_function):
+    """Interactive interface for testing custom queries"""
     
-    for i, (_, row) in enumerate(feature_importance_df.head().iterrows(), 1):
-        print(f"   {i}. {row['Feature']}: {row['Importance']:.4f}")
+    print("🎮 INTERACTIVE QUERY TESTING")
+    print("=" * 40)
+    print("Test your own queries! (Type 'quit' to exit)")
+    print()
+    
+    while True:
+        try:
+            # Get query from user
+            query = input("Enter your query: ").strip()
+            if query.lower() in ['quit', 'exit', 'q']:
+                print("👋 Exiting interactive testing!")
+                break
+            
+            if not query:
+                print("⚠️ Please enter a valid query")
+                continue
+            
+            # Get metadata (with defaults)
+            print("\nOptional metadata (press Enter for defaults):")
+            
+            difficulty = input("Difficulty [easy/medium/hard] (default: medium): ").strip()
+            if not difficulty:
+                difficulty = 'medium'
+            
+            task_category = input("Task category (default: Information seeking): ").strip()
+            if not task_category:
+                task_category = 'Information seeking'
+            
+            knowledge = input("Knowledge level [basic/intermediate/advanced/expert] (default: intermediate): ").strip()
+            if not knowledge:
+                knowledge = 'intermediate'
+            
+            intent = input("Intent (default: informational): ").strip()
+            if not intent:
+                intent = 'informational'
+            
+            print("\n" + "="*50)
+            
+            # Make prediction
+            predictions = predict_function(query, difficulty, task_category, intent, knowledge)
+            
+            # Additional analysis
+            prediction_values = [p for p in predictions.values() if isinstance(p, int)]
+            if prediction_values:
+                print("💡 ANALYSIS:")
+                if all(p < 50 for p in prediction_values):
+                    print("   📝 Predicted as SHORT response")
+                elif all(p > 300 for p in prediction_values):
+                    print("   📜 Predicted as LONG response")
+                else:
+                    print("   📄 Predicted as MEDIUM response")
+                
+                consistency = np.std(prediction_values)
+                if consistency < 20:
+                    print("   ✅ Models are CONSISTENT in predictions")
+                else:
+                    print("   ⚠️ Models show VARIATION in predictions")
+            
+            print("\n" + "="*50)
+            print()
+            
+        except KeyboardInterrupt:
+            print("\n👋 Exiting interactive testing!")
+            break
+        except Exception as e:
+            print(f"❌ Error: {e}")
+            print("Please try again with a different query.")
 
-# Final visualization - Model comparison with baseline
-fig, ax = plt.subplots(1, 1, figsize=(10, 6))
+# Uncomment the line below to start interactive testing
+# interactive_query_testing(predict_query)
 
-# Create comparison data
-methods = ['Word Count\nBaseline', f'Chris\'s Spec\n{best_model_name}']
-mae_values = [25.0, best_result['test_mae']]
-colors = ['lightcoral', 'lightgreen']
+print("🎯 NOTEBOOK COMPLETE!")
+print("=" * 50)
+print("✅ Filtered datasets created and analyzed")
+print("✅ Specialized models trained for different token ranges")
+print("✅ Query testing interface implemented")
+print("✅ Interactive testing available (uncomment last line)")
+print("\n🚀 Ready to test queries and compare model performance!")
+```
 
-bars = ax.bar(methods, mae_values, color=colors, alpha=0.8, edgecolor='black')
+# Cell 14: Summary and Insights
+```python
+def generate_final_insights(comparison_results, trained_models):
+    """Generate final insights and recommendations"""
+    
+    print("🎯 FINAL INSIGHTS AND RECOMMENDATIONS")
+    print("=" * 60)
+    
+    # Find best performing dataset
+    best_dataset = comparison_results.loc[comparison_results['Test MAE'].idxmin()]
+    worst_dataset = comparison_results.loc[comparison_results['Test MAE'].idxmax()]
+    
+    print(f"🏆 BEST PERFORMING MODEL:")
+    print(f"   Dataset: {best_dataset['Dataset']}")
+    print(f"   Model: {best_dataset['Best Model']}")
+    print(f"   MAE: {best_dataset['Test MAE']:.2f} tokens")
+    print(f"   Accuracy within ±10: {best_dataset['Within ±10']:.1f}%")
+    
+    print(f"\n📉 CHALLENGING DATASET:")
+    print(f"   Dataset: {worst_dataset['Dataset']}")
+    print(f"   MAE: {worst_dataset['Test MAE']:.2f} tokens")
+    print(f"   This suggests: {worst_dataset['Dataset'].replace('_', ' ').lower()} responses are harder to predict")
+    
+    print(f"\n📊 OVERALL PATTERNS:")
+    avg_mae = comparison_results['Test MAE'].mean()
+    avg_accuracy = comparison_results['Within ±10'].mean()
+    
+    print(f"   Average MAE across datasets: {avg_mae:.2f} tokens")
+    print(f"   Average ±10 accuracy: {avg_accuracy:.1f}%")
+    
+    if avg_mae < 50:
+        print("   ✅ Generally good prediction accuracy")
+    elif avg_mae < 100:
+        print("   ⚠️ Moderate prediction accuracy - room for improvement")
+    else:
+        print("   ❌ High prediction error - needs significant improvement")
+    
+    print(f"\n💡 KEY INSIGHTS:")
+    
+    # Analyze which token ranges work best
+    short_mae = comparison_results[comparison_results['Dataset'].str.contains('Short')]['Test MAE'].iloc[0] if any(comparison_results['Dataset'].str.contains('Short')) else None
+    medium_mae = comparison_results[comparison_results['Dataset'].str.contains('Medium')]['Test MAE'].iloc[0] if any(comparison_results['Dataset'].str.contains('Medium')) else None
+    long_mae = comparison_results[comparison_results['Dataset'].str.contains('Long')]['Test MAE'].iloc[0] if any(comparison_results['Dataset'].str.contains('Long')) else None
+    
+    if short_mae and medium_mae and long_mae:
+        if short_mae < medium_mae < long_mae:
+            print("   📝 Short responses are easiest to predict")
+            print("   📜 Long responses are hardest to predict")
+            print("   💡 Consider ensemble approach: use different models for different expected lengths")
+        elif medium_mae < short_mae and medium_mae < long_mae:
+            print("   🎯 Medium-length responses are most predictable")
+            print("   💡 Focus on improving short and long response predictions")
+    
+    print(f"\n🚀 PRODUCTION RECOMMENDATIONS:")
+    print(f"   1. Use {best_dataset['Dataset'].replace('_', ' ')} model for best accuracy")
+    print(f"   2. Implement ensemble approach for different token ranges")
+    print(f"   3. Monitor prediction accuracy in production")
+    print(f"   4. Retrain models periodically with new data")
+    
+    if avg_accuracy > 70:
+        print(f"   5. ✅ Models are production-ready for query routing")
+    else:
+        print(f"   5. ⚠️ Consider additional feature engineering before production")
+    
+    print(f"\n📈 NEXT STEPS:")
+    print(f"   • Test with real production queries")
+    print(f"   • A/B test against current token predictor")
+    print(f"   • Collect feedback and retrain")
+    print(f"   • Consider neural network approaches for complex patterns")
 
-# Add value labels on bars
-for bar, value in zip(bars, mae_values):
-    height = bar.get_height()
-    ax.text(bar.get_x() + bar.get_width()/2., height + 0.5,
-           f'{value:.1f}', ha='center', va='bottom', fontweight='bold')
-
-ax.set_ylabel('Mean Absolute Error (tokens)')
-ax.set_title('Token Predictor - Chris\'s Feature Specification Results', fontsize=14, fontweight='bold')
-ax.grid(True, alpha=0.3)
-
-# Add improvement annotation
-ax.annotate(f'{improvement:.0f}% better', xy=(1, best_result['test_mae']), 
-           xytext=(1, best_result['test_mae'] + 2),
-           ha='center', fontsize=12, color='green', fontweight='bold',
-           arrowprops=dict(arrowstyle='->', color='green'))
-
-plt.tight_layout()
-plt.show()
-
-print(f"\n📊 Chris's feature specification achieves {improvement:.0f}% improvement!")
-print(f"\n🎉 CHRIS'S SPECIFICATION MODEL COMPLETE!")
-print(f"    Ready for production deployment! 🚀")
+# Generate final insights
+generate_final_insights(comparison_results, trained_models)
 ```
 
 ## About Me
