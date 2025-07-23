@@ -4,17 +4,23 @@ from sentence_transformers import SentenceTransformer
 import numpy as np
 
 print("🚀 Loading sentence embedding model...")
-embedder = SentenceTransformer('all-miniLM-L6-v2')
-print("🔄 Generating embeddings for instructions...")
+# Note the exact model name and correct casing:
+embedder = SentenceTransformer('all-MiniLM-L6-v2')
+
+print("📡 Generating embeddings for instructions...")
+# Turn your instructions column into a list of strings
+instruction_texts = df['instruction'].astype(str).tolist()
+
+# Encode with progress bar and return a NumPy array
 embeddings_matrix = embedder.encode(
-    df['instruction'].astype(str).tolist(),
+    instruction_texts,
     show_progress_bar=True,
     convert_to_numpy=True
 )
-print(f"✅ Embeddings shape: {embeddings_matrix.shape}")
-python
-Copy
-Edit
+
+print(f"✅ Embeddings shape: {embeddings_matrix.shape}")  # Should be (n_samples, 384)
+
+
 # Cell 4: Enhanced Feature Engineering with Sentence Embeddings
 import re
 import pandas as pd
