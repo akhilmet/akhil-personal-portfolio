@@ -1,147 +1,64 @@
 ```
-# Cell 1: Load and Clean Data - Fixed Array Handling
-import os
-import glob
-import pandas as pd
+# Cell 2: Generate Embeddings
+from sentence_transformers import SentenceTransformer
 import numpy as np
-from mistral_common.tokens.tokenizers.mistral import MistralTokenizer
-from mistral_common.protocol.instruct.messages import UserMessage
-from mistral_common.protocol.instruct.request import ChatCompletionRequest
 
-def load_and_clean_data():
-    """Load Magpie dataset and clean suspicious labels"""
+def generate_embeddings(df):
+    """Generate semantic embeddings for instructions"""
     
-    print("📥 LOADING AND CLEANING DATA")
+    print("🤖 GENERATING SEMANTIC EMBEDDINGS")
     print("=" * 40)
     
-    # Load data
-    cwd = os.getcwd()
-    base_dir = os.path.join(
-        cwd,
-        "query-routing-systems-datasets", 
-        "Magpie-Llama-3.1-Pro-DPO-100k-v0.1",
-        "data"
-    )
+    # Load sentence transformer model
+    print("📥 Loading sentence transformer model...")
+    model = SentenceTransformer('all-MiniLM-L6-v2')  # Lightweight, fast model
+    print("✅ Model loaded!")
     
-    parquet_files = glob.glob(os.path.join(base_dir, "*.parquet"))
-    df_list = [pd.read_parquet(fp, engine="pyarrow") for fp in parquet_files]
-    df = pd.concat(df_list, ignore_index=True)
+    # Prepare instructions
+    print("🔄 Preparing instructions...")
+    instructions = df['instruction'].astype(str).fillna("").tolist()
+    print(f"📊 Processing {len(instructions)} instructions")
     
-    print(f"✅ Loaded {len(df)} samples from {len(parquet_files)} files")
+    # Generate embeddings in batches to avoid memory issues
+    print("🔄 Generating embeddings...")
+    batch_size = 1000
+    all_embeddings = []
     
-    # Extract response text - completely rewritten to avoid array issues
-    print("🔄 Extracting response text...")
+    for i in range(0, len(instructions), batch_size):
+        batch_end = min(i + batch_size, len(instructions))
+        batch = instructions[i:batch_end]
+        
+        print(f"   Processing batch {i//batch_size + 1}: samples {i+1}-{batch_end}")
+        batch_embeddings = model.encode(batch, show_progress_bar=False)
+        all_embeddings.extend(batch_embeddings)
+        
+        # Progress update
+        progress = (batch_end / len(instructions)) * 100
+        print(f"   Progress: {progress:.1f}% complete")
     
-    response_texts = []
-    for idx, responses_data in enumerate(df['responses']):
-        try:
-            if responses_data is None:
-                response_texts.append("")
-                continue
-            
-            # Convert to string first to avoid array ambiguity
-            if hasattr(responses_data, 'dtype'):  # It's a numpy array
-                if len(responses_data) == 0:
-                    response_texts.append("")
-                    continue
-                first_item = responses_data[0]
-            elif isinstance(responses_data, list):
-                if len(responses_data) == 0:
-                    response_texts.append("")
-                    continue
-                first_item = responses_data[0]
-            elif isinstance(responses_data, str):
-                response_texts.append(responses_data)
-                continue
-            else:
-                response_texts.append(str(responses_data))
-                continue
-            
-            # Handle the first item
-            if isinstance(first_item, dict):
-                for key in ('text', 'content', 'value', 'response'):
-                    if key in first_item:
-                        response_texts.append(str(first_item[key]))
-                        break
-                else:
-                    response_texts.append(str(first_item))
-            else:
-                response_texts.append(str(first_item))
-                
-        except Exception as e:
-            if idx < 5:  # Only print first few errors
-                print(f"Error processing response {idx}: {e}")
-            response_texts.append("")
+    embeddings_matrix = np.array(all_embeddings)
+    print(f"✅ Generated embeddings: {embeddings_matrix.shape}")
+    print(f"📊 Embedding statistics:")
+    print(f"   Shape: {embeddings_matrix.shape}")
+    print(f"   Mean: {embeddings_matrix.mean():.4f}")
+    print(f"   Std: {embeddings_matrix.std():.4f}")
+    print(f"   Min: {embeddings_matrix.min():.4f}")
+    print(f"   Max: {embeddings_matrix.max():.4f}")
     
-    # Assign the extracted responses
-    df['response'] = response_texts
-    
-    # Calculate tokens
-    print("🔥 Loading Mistral tokenizer...")
-    tokenizer = MistralTokenizer.v3()
-    
-    def count_tokens(text):
-        try:
-            if not text or pd.isna(text):
-                return 0
-            text_str = str(text).strip()
-            if len(text_str) == 0:
-                return 0
-            req = ChatCompletionRequest(messages=[UserMessage(content=text_str)])
-            enc = tokenizer.encode_chat_completion(req)
-            return len(enc.tokens)
-        except Exception:
-            return 0
-    
-    print("🎯 Calculating input tokens...")
-    df['input_tokens_mistral'] = [count_tokens(inst) for inst in df['instruction']]
-    
-    print("🎯 Calculating output tokens...")
-    df['actual_output_tokens'] = [count_tokens(resp) for resp in df['response']]
-    
-    # Convert to proper types
-    df['input_tokens_mistral'] = pd.Series(df['input_tokens_mistral'], dtype='int64')
-    df['actual_output_tokens'] = pd.Series(df['actual_output_tokens'], dtype='int64')
-    
-    # Remove missing or zero tokens
-    initial_count = len(df)
-    df = df[
-        (df['input_tokens_mistral'] > 0) & 
-        (df['actual_output_tokens'] > 0)
-    ].copy()
-    
-    print(f"🧹 Removed {initial_count - len(df)} samples with zero tokens")
-    
-    # Clean suspicious labels
-    print("🧹 Cleaning suspicious labels...")
-    suspicious_mask = (df['actual_output_tokens'] < 10) & (df['input_tokens_mistral'] > 100)
-    suspicious_count = suspicious_mask.sum()
-    df_clean = df[~suspicious_mask].copy()
-    
-    # Remove extreme outliers
-    if len(df_clean) > 0:
-        q1_out = df_clean['actual_output_tokens'].quantile(0.01)
-        q99_out = df_clean['actual_output_tokens'].quantile(0.99)
-        df_clean = df_clean[
-            (df_clean['actual_output_tokens'] >= q1_out) & 
-            (df_clean['actual_output_tokens'] <= q99_out)
-        ].copy()
-    
-    final_count = len(df_clean)
-    removed_count = initial_count - final_count
-    
-    print(f"🧹 Removed {suspicious_count} suspicious labels")
-    print(f"🧹 Removed {removed_count} total samples")
-    print(f"✅ Clean dataset: {final_count:,} samples")
-    
-    if final_count > 0:
-        print(f"📊 Token stats - Mean: {df_clean['actual_output_tokens'].mean():.1f}, "
-              f"Range: {df_clean['actual_output_tokens'].min()}-{df_clean['actual_output_tokens'].max()}")
-    
-    return df_clean
+    return embeddings_matrix, model
 
-# Load the data
-df_clean = load_and_clean_data()
+# Actually call the function and generate embeddings
+print("🚀 Starting embedding generation...")
+embeddings_matrix, embedding_model = generate_embeddings(df_clean)
+
+# Show some sample embeddings
+print(f"\n🔍 Sample embeddings:")
+print(f"First instruction: '{df_clean.iloc[0]['instruction'][:60]}...'")
+print(f"Embedding (first 10 dims): {embeddings_matrix[0][:10]}")
+print(f"\nSecond instruction: '{df_clean.iloc[1]['instruction'][:60]}...'")
+print(f"Embedding (first 10 dims): {embeddings_matrix[1][:10]}")
+
+print(f"\n✅ Embeddings generation complete!")
 ```
 ```
 # Enhanced Token Predictor with Embeddings and Data Cleaning
