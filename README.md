@@ -1,105 +1,66 @@
 ```
 # Cell 5: Enhanced Model Training
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import RandomForestRegressor
 from xgboost import XGBRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 import numpy as np
 
-def train_enhanced_models(feature_df, original_df, target_col='actual_output_tokens'):
-    """Train Random Forest and XGBoost on your enhanced features."""
-    # ── 1) Ensure target is in feature_df (fallback to original_df if needed)
-    if target_col not in feature_df.columns:
-        if target_col in original_df.columns:
-            feature_df = feature_df.copy()
-            feature_df[target_col] = original_df[target_col].astype(float).loc[feature_df.index]
-        else:
-            raise KeyError(f"Target column '{target_col}' not found in either DataFrame.")
-    
-    # ── 2) Build X, y
-    #    Drop raw‐text or ID columns and the target itself
-    drop_cols = [target_col, 'instruction', 'response', 'responses', 'uuid']
-    X = feature_df.drop(columns=drop_cols, errors='ignore')
-    y = feature_df[target_col].astype(float)
-    
-    #    Fill any remaining NaNs in X
-    X = X.fillna(0)
-    
-    #    Align X and y (drop any rows where y is missing)
-    mask = ~y.isnull()
-    X = X.loc[mask]
-    y = y.loc[mask]
-    
-    print(f"🚀 Data ready: {X.shape[0]} samples × {X.shape[1]} features")
-    print(f"🎯 Target tokens range: {y.min():.0f}–{y.max():.0f}, mean {y.mean():.1f}")
-    
-    # ── 3) Split into train/test
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42
-    )
-    print(f"📊 Split: {len(X_train)} train / {len(X_test)} test")
-    
-    # ── 4) (Optional) Scale features for models that might benefit
-    scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    X_test_scaled  = scaler.transform(X_test)
-    
-    # ── 5) Train Random Forest
-    print("\n🌳 Training Random Forest...")
-    rf = RandomForestRegressor(
-        n_estimators=300,
-        max_depth=20,
-        min_samples_split=5,
-        min_samples_leaf=2,
-        random_state=42,
-        n_jobs=-1
-    )
-    rf.fit(X_train, y_train)
-    
-    # ── 6) Train XGBoost
-    print("🚀 Training XGBoost...")
-    xgb = XGBRegressor(
-        n_estimators=300,
-        max_depth=8,
-        learning_rate=0.05,
-        subsample=0.8,
-        colsample_bytree=0.8,
-        random_state=42,
-        n_jobs=-1
-    )
-    xgb.fit(X_train, y_train)
-    
-    # ── 7) Evaluation function
-    def evaluate(name, model):
-        preds = model.predict(X_test)
-        mae  = mean_absolute_error(y_test, preds)
-        rmse = mean_squared_error(y_test, preds, squared=False)
-        r2   = r2_score(y_test, preds)
-        print(f"\n📊 {name} results:")
-        print(f"   • MAE : {mae:.2f}")
-        print(f"   • RMSE: {rmse:.2f}")
-        print(f"   • R²  : {r2:.3f}")
-    
-    # ── 8) Evaluate both models
-    evaluate("Random Forest", rf)
-    evaluate("XGBoost",      xgb)
-    
-    # ── 9) Return models and holdout set for further analysis
-    return {
-        'rf': rf,
-        'xgb': xgb,
-        'scaler': scaler,
-        'X_test': X_test,
-        'y_test': y_test
-    }
-
-# Actually call the function
 print("🚀 Starting enhanced model training...")
-training_results = train_enhanced_models(features_df, df)
 
-print("\n🎉 Training complete!")
+# 1) Prepare X and y
+#    Drop any non-feature columns
+drop_cols = ['uuid', 'instruction', 'responses', 'response', 'actual_output_tokens']
+feature_cols = [c for c in features_df.columns if c not in drop_cols]
+X = features_df[feature_cols].fillna(0)
+y = features_df['actual_output_tokens'].astype(float)
 
+print(f"📊 Data: {X.shape[0]} samples × {X.shape[1]} features")
+print(f"🎯 Target range: {y.min():.0f}–{y.max():.0f}, mean {y.mean():.1f}")
+
+# 2) Train/Test split
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+print(f"🔖 Split: {len(X_train)} train / {len(X_test)} test")
+
+# 3) Train Random Forest
+print("\n🌳 Training Random Forest...")
+rf = RandomForestRegressor(
+    n_estimators=300,
+    max_depth=20,
+    min_samples_split=5,
+    min_samples_leaf=2,
+    random_state=42,
+    n_jobs=-1
+)
+rf.fit(X_train, y_train)
+print("✅ Random Forest trained")
+
+# 4) Train XGBoost
+print("🚀 Training XGBoost...")
+xgb = XGBRegressor(
+    n_estimators=300,
+    max_depth=8,
+    learning_rate=0.05,
+    subsample=0.8,
+    colsample_bytree=0.8,
+    random_state=42,
+    n_jobs=-1
+)
+xgb.fit(X_train, y_train)
+print("✅ XGBoost trained")
+
+# 5) Evaluate both models
+for name, model in [("Random Forest", rf), ("XGBoost", xgb)]:
+    print(f"\n📊 Evaluating {name}:")
+    preds = model.predict(X_test)
+    mae  = mean_absolute_error(y_test, preds)
+    rmse = mean_squared_error(y_test, preds, squared=False)
+    r2   = r2_score(y_test, preds)
+    print(f"   • MAE : {mae:.2f}")
+    print(f"   • RMSE: {rmse:.2f}")
+    print(f"   • R²  : {r2:.3f}")
 
 ```
 ```
