@@ -1,4 +1,16 @@
 ```
+Hey Chris,
+Here's what jumped out at me from the results:
+
+Short responses are actually predictable - the Short_Focus model got 9.84 MAE with 52% within ±10 tokens, which is way better than the others. BUT there's only 835 samples with <50 token outputs, so we're working with a tiny dataset there.
+Medium/Long models are struggling hard - Medium_Focus at 55.70 MAE and Long_Focus at 179.63 MAE are both worse than the 25 token baseline, which means our features aren't capturing what makes responses long vs medium.
+The dataset is heavily skewed - 84k samples are long responses (>300 tokens), 14k are medium, and only 835 are short. So most of the Magpie data is complex/detailed responses, which might be why predicting shorter stuff works better (clearer patterns with less variance).
+
+Seems like the short responses have more predictable patterns while the longer ones are all over the place in terms of what drives their length.
+```
+
+
+```
 # Enhanced Token Predictor - Filtered Dataset Analysis (NO DATA LEAKAGE)
 # Based on Chris's feedback: Filter by output token ranges but NO target variable in features
 
