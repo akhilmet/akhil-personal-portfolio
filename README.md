@@ -1,4 +1,69 @@
 ```
+# Cell 5: Enhanced Model Training
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestRegressor
+from xgboost import XGBRegressor
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+
+# 1️⃣  Prepare feature matrix X and target vector y
+if 'actual_output_tokens' not in features_df.columns:
+    raise KeyError(
+        "Column 'actual_output_tokens' not found in features_df. "
+        "Make sure you computed it in an earlier cell."
+    )
+
+X = features_df.drop(columns=['actual_output_tokens'])
+y = features_df['actual_output_tokens'].astype(float)
+
+print(f"🚀  Data ready: {X.shape[0]} samples, {X.shape[1]} features")
+
+# 2️⃣  Split into train / test
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.20, random_state=42
+)
+print(f"📊  Split: {X_train.shape[0]} train / {X_test.shape[0]} test")
+
+# 3️⃣  Train Random Forest (with chosen hyperparameters)
+print("\n🌳  Training Random Forest...")
+rf = RandomForestRegressor(
+    n_estimators=300,
+    max_depth=20,
+    min_samples_split=5,
+    min_samples_leaf=2,
+    random_state=42,
+    n_jobs=-1
+)
+rf.fit(X_train, y_train)
+
+# 4️⃣  Train XGBoost
+print("🚀  Training XGBoost...")
+xgb_model = XGBRegressor(
+    n_estimators=300,
+    max_depth=8,
+    learning_rate=0.05,
+    subsample=0.8,
+    colsample_bytree=0.8,
+    random_state=42,
+    n_jobs=-1
+)
+xgb_model.fit(X_train, y_train)
+
+# 5️⃣  Evaluate both models
+def evaluate(name, model):
+    preds = model.predict(X_test)
+    mae  = mean_absolute_error(y_test, preds)
+    rmse = mean_squared_error(y_test, preds, squared=False)
+    r2   = r2_score(y_test, preds)
+    print(f"\n📊  {name} evaluation:")
+    print(f"    • MAE:  {mae:.2f}")
+    print(f"    • RMSE: {rmse:.2f}")
+    print(f"    • R²:   {r2:.3f}")
+
+evaluate("Random Forest", rf)
+evaluate("XGBoost", xgb_model)
+
+```
+```
 # Cell 3: Generate Sentence Embeddings
 from sentence_transformers import SentenceTransformer
 import numpy as np
