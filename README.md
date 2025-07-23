@@ -29,28 +29,45 @@ def load_and_clean_data():
     
     print(f"✅ Loaded {len(df)} samples from {len(parquet_files)} files")
     
-    # Extract response text
+    # Extract response text - fixed version
     def extract_response_text(responses_data):
-        if responses_data is None or pd.isna(responses_data):
-            return ""
-        
-        if isinstance(responses_data, str):
-            return responses_data
-        if isinstance(responses_data, list) and len(responses_data) > 0:
-            first = responses_data[0]
-            if isinstance(first, dict):
+        try:
+            if responses_data is None:
+                return ""
+            if pd.isna(responses_data):
+                return ""
+            
+            # Handle different data types
+            if isinstance(responses_data, str):
+                return responses_data
+            
+            if isinstance(responses_data, list):
+                if len(responses_data) == 0:
+                    return ""
+                first = responses_data[0]
+                if isinstance(first, dict):
+                    for key in ('text', 'content', 'value', 'response'):
+                        if key in first:
+                            return str(first[key])
+                    return str(first)
+                else:
+                    return str(first)
+            
+            if isinstance(responses_data, dict):
                 for key in ('text', 'content', 'value', 'response'):
-                    if key in first:
-                        return str(first[key])
-            elif isinstance(first, str):
-                return first
-        if isinstance(responses_data, dict):
-            for key in ('text', 'content', 'value', 'response'):
-                if key in responses_data:
-                    return str(responses_data[key])
-        
-        return str(responses_data)
+                    if key in responses_data:
+                        return str(responses_data[key])
+                return str(responses_data)
+            
+            # Fallback
+            return str(responses_data)
+            
+        except Exception as e:
+            print(f"Error processing response: {e}")
+            return ""
     
+    # Apply extraction safely
+    print("🔄 Extracting response text...")
     df['response'] = df['responses'].apply(extract_response_text)
     
     # Calculate tokens
@@ -58,19 +75,33 @@ def load_and_clean_data():
     tokenizer = MistralTokenizer.v3()
     
     def count_tokens(text):
-        if pd.isna(text) or text == "":
+        try:
+            if pd.isna(text) or text == "" or text is None:
+                return 0
+            text_str = str(text)
+            if len(text_str.strip()) == 0:
+                return 0
+            req = ChatCompletionRequest(messages=[UserMessage(content=text_str)])
+            enc = tokenizer.encode_chat_completion(req)
+            return len(enc.tokens)
+        except Exception as e:
+            print(f"Error tokenizing: {e}")
             return 0
-        req = ChatCompletionRequest(messages=[UserMessage(content=str(text))])
-        enc = tokenizer.encode_chat_completion(req)
-        return len(enc.tokens)
     
-    print("🎯 Calculating tokens...")
+    print("🎯 Calculating input tokens...")
     df['input_tokens_mistral'] = df['instruction'].apply(count_tokens)
+    
+    print("🎯 Calculating output tokens...")
     df['actual_output_tokens'] = df['response'].apply(count_tokens)
     
-    # Remove missing tokens
+    # Remove missing or zero tokens
     initial_count = len(df)
-    df = df.dropna(subset=['input_tokens_mistral', 'actual_output_tokens'])
+    df = df[
+        (df['input_tokens_mistral'] > 0) & 
+        (df['actual_output_tokens'] > 0)
+    ].copy()
+    
+    print(f"🧹 Removed {initial_count - len(df)} samples with zero tokens")
     
     # Clean suspicious labels
     print("🧹 Cleaning suspicious labels...")
@@ -90,10 +121,12 @@ def load_and_clean_data():
     removed_count = initial_count - final_count
     
     print(f"🧹 Removed {suspicious_count} suspicious labels")
-    print(f"🧹 Removed {removed_count} total samples (including outliers)")
+    print(f"🧹 Removed {removed_count} total samples")
     print(f"✅ Clean dataset: {final_count:,} samples")
-    print(f"📊 Token stats - Mean: {df_clean['actual_output_tokens'].mean():.1f}, "
-          f"Range: {df_clean['actual_output_tokens'].min()}-{df_clean['actual_output_tokens'].max()}")
+    
+    if final_count > 0:
+        print(f"📊 Token stats - Mean: {df_clean['actual_output_tokens'].mean():.1f}, "
+              f"Range: {df_clean['actual_output_tokens'].min()}-{df_clean['actual_output_tokens'].max()}")
     
     return df_clean
 
