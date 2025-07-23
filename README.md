@@ -1,4 +1,131 @@
 ```
+# Cell 3: Advanced Feature Engineering for Neural Networks (with metadata progress bar)
+from sklearn.decomposition import PCA
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import LabelEncoder
+from tqdm.auto import tqdm
+import re
+import numpy as np
+import pandas as pd
+
+def create_neural_network_features(df, embeddings_matrix):
+    """Create comprehensive features optimized for neural networks, with metadata progress."""
+    
+    print("🛠️ NEURAL NETWORK FEATURE ENGINEERING")
+    print("=" * 50)
+    features_df = df.copy()
+    
+    # 1. PCA on embeddings
+    print("📊 Applying PCA to embeddings...")
+    pca = PCA(n_components=100, random_state=42)
+    embeddings_pca = pca.fit_transform(embeddings_matrix)
+    explained_variance = pca.explained_variance_ratio_.sum()
+    print(f"✅ PCA complete - explained variance: {explained_variance:.1%}")
+    
+    for i in range(embeddings_pca.shape[1]):
+        features_df[f'embed_pca_{i}'] = embeddings_pca[:, i]
+    
+    # 2. Semantic clustering
+    print("🎯 Semantic clustering...")
+    kmeans = KMeans(n_clusters=50, random_state=42, n_init=10)
+    clusters = kmeans.fit_predict(embeddings_pca)
+    features_df['semantic_cluster'] = clusters
+    
+    # 3. Advanced text features
+    print("📝 Extracting comprehensive text features...")
+    def extract_comprehensive_features(text):
+        if pd.isna(text) or text == "":
+            return [0]*16  # 16 features below
+        txt = str(text)
+        txt_lower = txt.lower()
+        words = txt_lower.split() or ['']
+        feats = [
+            len(txt),
+            len(words),
+            len(set(words))/len(words),
+            np.mean([len(w) for w in words]),
+            txt.count('?'),
+            txt.count('.'),
+            txt.count(','),
+            txt.count(':'),
+            txt.count(';'),
+            sum(len(re.findall(p, txt_lower)) for p in [
+                r'\b(function|class|import|def|return|api|database|algorithm|model|training)\b',
+                r'\b(tensor|numpy|pandas|sklearn|python|javascript|react|sql|html|css)\b',
+                r'\b(implement|optimize|debug|refactor|deploy|configure|install)\b',
+                r'\b(analysis|statistics|machine learning|neural network|regression|classification)\b'
+            ])/len(words),
+            sum(len(re.findall(p, txt_lower)) for p in [
+                r'\bhow to\b', r'\bwhy does\b', r'\bwhat is the difference\b',
+                r'\bcompare\b', r'\bexplain\b', r'\bimplement\b', r'\banalyze\b'
+            ]),
+            sum(len(re.findall(p, txt_lower)) for p in [
+                r'\bstep by step\b', r'\bdetailed\b', r'\bcomprehensive\b',
+                r'\btutorial\b', r'\bguide\b', r'\bexample\b', r'\bwalkthrough\b'
+            ]),
+            int('```' in txt),
+            int(bool(re.search(r'`[^`]+`', txt))),
+            int(bool(re.search(r'\bprint\s*\(', txt_lower))),
+            int(bool(re.search(r'\bdef\s+\w+\s*\(', txt_lower)))
+        ]
+        return feats
+    
+    feature_names = [
+        'text_char_length','text_word_count','text_lexical_diversity','text_avg_word_length',
+        'text_question_marks','text_periods','text_commas','text_colons','text_semicolons',
+        'text_tech_density','text_question_complexity','text_instruction_complexity',
+        'text_has_code_blocks','text_has_inline_code','text_has_print_statements','text_has_function_defs'
+    ]
+    
+    all_feats = [extract_comprehensive_features(instr)
+                 for instr in features_df['instruction']]
+    for idx, name in enumerate(feature_names):
+        features_df[name] = [f[idx] for f in all_feats]
+    
+    # 4. Metadata encoding (with progress bar)
+    print("🏷️ Processing metadata (this may take a moment)...")
+    label_encoders = {}
+    categorical_features = ['task_category', 'intent', 'knowledge', 'difficulty']
+    for col in tqdm(categorical_features, desc="Metadata cols"):
+        if col in features_df.columns:
+            unique_vals = features_df[col].dropna().unique()
+            print(f"   • {col}: {len(unique_vals)} unique values")
+            for val in tqdm(unique_vals, desc=f"    Encoding {col}", leave=False):
+                features_df[f"{col}_{val}"] = (features_df[col] == val).astype(int)
+            le = LabelEncoder().fit(list(unique_vals))
+            label_encoders[col] = le
+        else:
+            features_df[f"{col}_unknown"] = 1
+    
+    # 5. Interaction features
+    print("🔗 Creating interaction features...")
+    features_df['length_complexity_interaction'] = (
+        features_df['text_char_length'] * features_df['text_tech_density']
+    )
+    features_df['word_lexical_interaction'] = (
+        features_df['text_word_count'] * features_df['text_lexical_diversity']
+    )
+    # cluster one-hot (first 10 for brevity)
+    for cid in range(min(10, features_df['semantic_cluster'].nunique())):
+        features_df[f'cluster_{cid}'] = (features_df['semantic_cluster'] == cid).astype(int)
+    
+    print(f"✅ Neural network features created: {features_df.shape[1]} total features")
+    return features_df, pca, kmeans, label_encoders
+
+# Run it
+print("🚀 Starting neural network feature engineering...")
+features_df, pca_model, kmeans_model, label_encoders = create_neural_network_features(
+    df_clean, embeddings_matrix
+)
+
+print(f"\n🔍 Feature summary:")
+print(f"   Total features         : {features_df.shape[1]}")
+print(f"   Embedding features     : {len([c for c in features_df if c.startswith('embed_pca_')])}")
+print(f"   Text features          : {len([c for c in features_df if c.startswith('text_')])}")
+print(f"   Cluster features       : {len([c for c in features_df if c.startswith('cluster_')])}")
+print(f"   One‑hot metadata cols  : {len([c for c in features_df if any(c.startswith(f) for f in categorical_features)])}")
+
+```
 # MLP Token Predictor - Complete Notebook
 # Using Multi-Layer Perceptron with regression head for better performance
 
