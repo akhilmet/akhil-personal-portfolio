@@ -1,12 +1,55 @@
 ```
-Hey Chris,
-Here's what jumped out at me from the results:
+# Cell: Analyze Short Response Queries
+def analyze_short_queries(df_with_tokens):
+    """Look at the actual short response queries"""
+    
+    print("🔍 ANALYZING SHORT RESPONSE QUERIES (<50 tokens)")
+    print("=" * 60)
+    
+    # Filter for short responses
+    short_queries = df_with_tokens[df_with_tokens['actual_output_tokens'] < 50].copy()
+    
+    print(f"📊 Found {len(short_queries)} short response queries")
+    print()
+    
+    # Sort by output token count to see progression
+    short_queries_sorted = short_queries.sort_values('actual_output_tokens')
+    
+    # Display first 50 examples
+    print("📝 SAMPLE SHORT QUERIES (first 50):")
+    print("-" * 60)
+    
+    for i, (idx, row) in enumerate(short_queries_sorted.head(50).iterrows()):
+        instruction = str(row['instruction'])[:100]  # Truncate long instructions
+        output_tokens = row['actual_output_tokens']
+        input_tokens = row['input_tokens_mistral']
+        
+        print(f"{i+1:2d}. [{output_tokens:2d} out | {input_tokens:2d} in] {instruction}")
+        if len(str(row['instruction'])) > 100:
+            print("    ...")
+        print()
+    
+    # Show statistics
+    print(f"\n📊 SHORT QUERY STATISTICS:")
+    print(f"   Input tokens - Mean: {short_queries['input_tokens_mistral'].mean():.1f}")
+    print(f"   Output tokens - Mean: {short_queries['actual_output_tokens'].mean():.1f}")
+    print(f"   Instruction length - Mean: {short_queries['instruction'].str.len().mean():.1f} chars")
+    
+    # Show full list (if you want to see ALL of them)
+    print(f"\n📜 ALL {len(short_queries)} SHORT QUERIES:")
+    print("-" * 60)
+    
+    for i, (idx, row) in enumerate(short_queries_sorted.iterrows()):
+        instruction = str(row['instruction'])
+        output_tokens = row['actual_output_tokens']
+        input_tokens = row['input_tokens_mistral']
+        
+        print(f"{i+1:3d}. [{output_tokens:2d} out | {input_tokens:2d} in] {instruction}")
+    
+    return short_queries_sorted
 
-Short responses are actually predictable - the Short_Focus model got 9.84 MAE with 52% within ±10 tokens, which is way better than the others. BUT there's only 835 samples with <50 token outputs, so we're working with a tiny dataset there.
-Medium/Long models are struggling hard - Medium_Focus at 55.70 MAE and Long_Focus at 179.63 MAE are both worse than the 25 token baseline, which means our features aren't capturing what makes responses long vs medium.
-The dataset is heavily skewed - 84k samples are long responses (>300 tokens), 14k are medium, and only 835 are short. So most of the Magpie data is complex/detailed responses, which might be why predicting shorter stuff works better (clearer patterns with less variance).
-
-Seems like the short responses have more predictable patterns while the longer ones are all over the place in terms of what drives their length.
+# Run the analysis
+short_queries_data = analyze_short_queries(df_with_tokens)
 ```
 
 
