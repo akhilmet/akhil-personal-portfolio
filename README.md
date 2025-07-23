@@ -3,70 +3,49 @@
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import RandomForestRegressor
-import xgboost as xgb
+from xgboost import XGBRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 import numpy as np
 
-def train_enhanced_models(features_df, target_col='actual_output_tokens'):
-    """Train models with enhanced features including embeddings"""
-
-    print("🎯 TRAINING ENHANCED MODELS")
-    print("=" * 40)
-
-    # 1) Check that the target column actually exists
-    if target_col not in features_df.columns:
-        raise KeyError(
-            f"Target column '{target_col}' not found in DataFrame. "
-            f"Available columns: {features_df.columns.tolist()}"
-        )
-
-    # 2) Identify feature groups
-    embedding_cols = [c for c in features_df.columns if c.startswith('embed_')]
-    pattern_cols   = [c for c in features_df.columns if c.startswith('pattern_')]
-    basic_cols     = [c for c in ['input_tokens_mistral', 'instruction_len', 'instruction_word_count'] if c in features_df]
-    enhanced_cols  = [
-        c for c in [
-            'lexical_diversity',
-            'technical_density',
-            'question_complexity',
-            'instruction_complexity_enhanced'
-        ] if c in features_df
-    ]
-    encoded_cols   = [c for c in features_df.columns if c.endswith('_encoded') and c not in basic_cols]
-    other_cols     = [c for c in ['semantic_cluster', 'difficulty_encoded'] if c in features_df]
-
-    # 3) Assemble final feature list in a deterministic order
-    feature_columns = []
-    for group in (basic_cols, enhanced_cols, other_cols, encoded_cols, embedding_cols, pattern_cols):
-        for col in group:
-            if col not in feature_columns:
-                feature_columns.append(col)
-
-    print(f"📊 Using {len(feature_columns)} features:")
-    print(f"   • Embedding features: {len(embedding_cols)}")
-    print(f"   • Pattern features:   {len(pattern_cols)}")
-    print(f"   • Other features:     {len(feature_columns) - len(embedding_cols) - len(pattern_cols)}")
-
-    # 4) Prepare X and y
-    X = features_df[feature_columns].fillna(0)
-    y = features_df[target_col].astype(float)
-
-    print(f"📊 Data matrix: {X.shape[0]} samples × {X.shape[1]} features")
-    print(f"🎯 Target '{target_col}': range {y.min():.0f}–{y.max():.0f}, mean {y.mean():.1f}")
-
-    # 5) Train/test split
+def train_enhanced_models(feature_df, original_df, target_col='actual_output_tokens'):
+    """Train Random Forest and XGBoost on your enhanced features."""
+    # ── 1) Ensure target is in feature_df (fallback to original_df if needed)
+    if target_col not in feature_df.columns:
+        if target_col in original_df.columns:
+            feature_df = feature_df.copy()
+            feature_df[target_col] = original_df[target_col].astype(float).loc[feature_df.index]
+        else:
+            raise KeyError(f"Target column '{target_col}' not found in either DataFrame.")
+    
+    # ── 2) Build X, y
+    #    Drop raw‐text or ID columns and the target itself
+    drop_cols = [target_col, 'instruction', 'response', 'responses', 'uuid']
+    X = feature_df.drop(columns=drop_cols, errors='ignore')
+    y = feature_df[target_col].astype(float)
+    
+    #    Fill any remaining NaNs in X
+    X = X.fillna(0)
+    
+    #    Align X and y (drop any rows where y is missing)
+    mask = ~y.isnull()
+    X = X.loc[mask]
+    y = y.loc[mask]
+    
+    print(f"🚀 Data ready: {X.shape[0]} samples × {X.shape[1]} features")
+    print(f"🎯 Target tokens range: {y.min():.0f}–{y.max():.0f}, mean {y.mean():.1f}")
+    
+    # ── 3) Split into train/test
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.20, random_state=42
+        X, y, test_size=0.2, random_state=42
     )
-
-    # 6) Scale (for any models that need it)
+    print(f"📊 Split: {len(X_train)} train / {len(X_test)} test")
+    
+    # ── 4) (Optional) Scale features for models that might benefit
     scaler = StandardScaler()
     X_train_scaled = scaler.fit_transform(X_train)
     X_test_scaled  = scaler.transform(X_test)
-
-    # 7) Initialize and fit models
-    results = {}
-
+    
+    # ── 5) Train Random Forest
     print("\n🌳 Training Random Forest...")
     rf = RandomForestRegressor(
         n_estimators=300,
@@ -77,10 +56,10 @@ def train_enhanced_models(features_df, target_col='actual_output_tokens'):
         n_jobs=-1
     )
     rf.fit(X_train, y_train)
-    results['Random Forest'] = rf
-
+    
+    # ── 6) Train XGBoost
     print("🚀 Training XGBoost...")
-    xgb_reg = xgb.XGBRegressor(
+    xgb = XGBRegressor(
         n_estimators=300,
         max_depth=8,
         learning_rate=0.05,
@@ -89,51 +68,27 @@ def train_enhanced_models(features_df, target_col='actual_output_tokens'):
         random_state=42,
         n_jobs=-1
     )
-    xgb_reg.fit(X_train, y_train)
-    results['XGBoost'] = xgb_reg
-
-    # 8) Evaluate
-    summary = {}
-    for name, model in results.items():
-        print(f"\n📊 Evaluating {name}...")
-        y_pred_train = model.predict(X_train)
-        y_pred_test  = model.predict(X_test)
-
-        train_mae = mean_absolute_error(y_train, y_pred_train)
-        test_mae  = mean_absolute_error(y_test,  y_pred_test)
-        test_rmse = np.sqrt(mean_squared_error(y_test, y_pred_test))
-        test_r2   = r2_score(y_test, y_pred_test)
-
-        errors = np.abs(y_test - y_pred_test)
-        within_5  = (errors <= 5).mean()  * 100
-        within_10 = (errors <= 10).mean() * 100
-        within_20 = (errors <= 20).mean() * 100
-
-        summary[name] = {
-            'train_mae': train_mae,
-            'test_mae':  test_mae,
-            'test_rmse': test_rmse,
-            'test_r2':   test_r2,
-            'within_5%':  within_5,
-            'within_10%': within_10,
-            'within_20%': within_20
-        }
-
-        print(f"   Train MAE: {train_mae:.2f} | Test MAE: {test_mae:.2f}")
-        print(f"   Test RMSE: {test_rmse:.2f} | Test R²: {test_r2:.3f}")
-        print(f"   Within ±5 tokens:  {within_5:.1f}%")
-        print(f"   Within ±10 tokens: {within_10:.1f}%")
-        print(f"   Within ±20 tokens: {within_20:.1f}%")
-
-    # 9) Pick best by lowest test_mae
-    best_model = min(summary, key=lambda m: summary[m]['test_mae'])
-    print(f"\n🏆 Best model: {best_model} (Test MAE: {summary[best_model]['test_mae']:.2f} tokens)")
-
+    xgb.fit(X_train, y_train)
+    
+    # ── 7) Evaluation function
+    def evaluate(name, model):
+        preds = model.predict(X_test)
+        mae  = mean_absolute_error(y_test, preds)
+        rmse = mean_squared_error(y_test, preds, squared=False)
+        r2   = r2_score(y_test, preds)
+        print(f"\n📊 {name} results:")
+        print(f"   • MAE : {mae:.2f}")
+        print(f"   • RMSE: {rmse:.2f}")
+        print(f"   • R²  : {r2:.3f}")
+    
+    # ── 8) Evaluate both models
+    evaluate("Random Forest", rf)
+    evaluate("XGBoost",      xgb)
+    
+    # ── 9) Return models and holdout set for further analysis
     return {
-        'models': results,
-        'metrics': summary,
-        'best_model_name': best_model,
-        'feature_columns': feature_columns,
+        'rf': rf,
+        'xgb': xgb,
         'scaler': scaler,
         'X_test': X_test,
         'y_test': y_test
@@ -141,7 +96,9 @@ def train_enhanced_models(features_df, target_col='actual_output_tokens'):
 
 # Actually call the function
 print("🚀 Starting enhanced model training...")
-training_results = train_enhanced_models(features_df)
+training_results = train_enhanced_models(features_df, df)
+
+print("\n🎉 Training complete!")
 
 
 ```
