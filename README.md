@@ -1,4 +1,106 @@
 ```
+# Cell 1: Load and Clean Data
+import os
+import glob
+import pandas as pd
+import numpy as np
+from mistral_common.tokens.tokenizers.mistral import MistralTokenizer
+from mistral_common.protocol.instruct.messages import UserMessage
+from mistral_common.protocol.instruct.request import ChatCompletionRequest
+
+def load_and_clean_data():
+    """Load Magpie dataset and clean suspicious labels"""
+    
+    print("📥 LOADING AND CLEANING DATA")
+    print("=" * 40)
+    
+    # Load data
+    cwd = os.getcwd()
+    base_dir = os.path.join(
+        cwd,
+        "query-routing-systems-datasets", 
+        "Magpie-Llama-3.1-Pro-DPO-100k-v0.1",
+        "data"
+    )
+    
+    parquet_files = glob.glob(os.path.join(base_dir, "*.parquet"))
+    df_list = [pd.read_parquet(fp, engine="pyarrow") for fp in parquet_files]
+    df = pd.concat(df_list, ignore_index=True)
+    
+    print(f"✅ Loaded {len(df)} samples from {len(parquet_files)} files")
+    
+    # Extract response text
+    def extract_response_text(responses_data):
+        if responses_data is None or pd.isna(responses_data):
+            return ""
+        
+        if isinstance(responses_data, str):
+            return responses_data
+        if isinstance(responses_data, list) and len(responses_data) > 0:
+            first = responses_data[0]
+            if isinstance(first, dict):
+                for key in ('text', 'content', 'value', 'response'):
+                    if key in first:
+                        return str(first[key])
+            elif isinstance(first, str):
+                return first
+        if isinstance(responses_data, dict):
+            for key in ('text', 'content', 'value', 'response'):
+                if key in responses_data:
+                    return str(responses_data[key])
+        
+        return str(responses_data)
+    
+    df['response'] = df['responses'].apply(extract_response_text)
+    
+    # Calculate tokens
+    print("🔥 Loading Mistral tokenizer...")
+    tokenizer = MistralTokenizer.v3()
+    
+    def count_tokens(text):
+        if pd.isna(text) or text == "":
+            return 0
+        req = ChatCompletionRequest(messages=[UserMessage(content=str(text))])
+        enc = tokenizer.encode_chat_completion(req)
+        return len(enc.tokens)
+    
+    print("🎯 Calculating tokens...")
+    df['input_tokens_mistral'] = df['instruction'].apply(count_tokens)
+    df['actual_output_tokens'] = df['response'].apply(count_tokens)
+    
+    # Remove missing tokens
+    initial_count = len(df)
+    df = df.dropna(subset=['input_tokens_mistral', 'actual_output_tokens'])
+    
+    # Clean suspicious labels
+    print("🧹 Cleaning suspicious labels...")
+    suspicious_mask = (df['actual_output_tokens'] < 10) & (df['input_tokens_mistral'] > 100)
+    suspicious_count = suspicious_mask.sum()
+    df_clean = df[~suspicious_mask].copy()
+    
+    # Remove extreme outliers
+    q1_out = df_clean['actual_output_tokens'].quantile(0.01)
+    q99_out = df_clean['actual_output_tokens'].quantile(0.99)
+    df_clean = df_clean[
+        (df_clean['actual_output_tokens'] >= q1_out) & 
+        (df_clean['actual_output_tokens'] <= q99_out)
+    ].copy()
+    
+    final_count = len(df_clean)
+    removed_count = initial_count - final_count
+    
+    print(f"🧹 Removed {suspicious_count} suspicious labels")
+    print(f"🧹 Removed {removed_count} total samples (including outliers)")
+    print(f"✅ Clean dataset: {final_count:,} samples")
+    print(f"📊 Token stats - Mean: {df_clean['actual_output_tokens'].mean():.1f}, "
+          f"Range: {df_clean['actual_output_tokens'].min()}-{df_clean['actual_output_tokens'].max()}")
+    
+    return df_clean
+
+# Load the data
+df_clean = load_and_clean_data()
+```
+```
 # Enhanced Token Predictor with Embeddings and Data Cleaning
 # Adding semantic embeddings to improve prediction accuracy
 
