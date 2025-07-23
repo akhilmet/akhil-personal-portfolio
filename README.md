@@ -1,513 +1,301 @@
-# Cell 3: Process Embeddings - PCA and Clustering
-```python
-from sklearn.decomposition import PCA
-from sklearn.cluster import KMeans
-import matplotlib.pyplot as plt
-
-def process_embeddings(embeddings_matrix, n_components=50, n_clusters=20):
-    """Reduce dimensionality and add clustering features"""
-    
-    print("🔄 PROCESSING EMBEDDINGS")
-    print("=" * 30)
-    
-    # PCA for dimensionality reduction
-    print(f"📉 Applying PCA: {embeddings_matrix.shape[1]} → {n_components} dimensions")
-    pca = PCA(n_components=n_components, random_state=42)
-    embeddings_pca = pca.fit_transform(embeddings_matrix)
-    
-    explained_variance = pca.explained_variance_ratio_.sum()
-    print(f"✅ PCA complete - explained variance: {explained_variance:.1%}")
-    
-    # Show explained variance per component (first 10)
-    print(f"📊 Top 10 components explained variance:")
-    for i in range(min(10, len(pca.explained_variance_ratio_))):
-        print(f"   Component {i+1}: {pca.explained_variance_ratio_[i]:.3f}")
-    
-    # K-means clustering for semantic grouping
-    print(f"🎯 K-means clustering: {n_clusters} clusters")
-    kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
-    clusters = kmeans.fit_predict(embeddings_pca)
-    
-    cluster_counts = pd.Series(clusters).value_counts().sort_index()
-    print(f"✅ Clustering complete - cluster sizes: {cluster_counts.min()}-{cluster_counts.max()}")
-    print(f"📊 Cluster distribution:")
-    for i in range(min(10, n_clusters)):
-        print(f"   Cluster {i}: {cluster_counts[i]} samples")
-    
-    return embeddings_pca, clusters, pca, kmeans
-
-# Actually call the function
-print("🚀 Starting embedding processing...")
-embeddings_pca, clusters, pca_model, kmeans_model = process_embeddings(embeddings_matrix)
-
-print(f"\n🔍 Results summary:")
-print(f"   PCA shape: {embeddings_pca.shape}")
-print(f"   Cluster assignments: {len(clusters)} samples")
-print(f"   Unique clusters: {len(np.unique(clusters))}")
 ```
+# Cell 3: Generate Sentence Embeddings
+from sentence_transformers import SentenceTransformer
+import numpy as np
 
-# Cell 4: Enhanced Feature Engineering
-```python
+print("🚀 Loading sentence embedding model...")
+embedder = SentenceTransformer('all-miniLM-L6-v2')
+print("🔄 Generating embeddings for instructions...")
+embeddings_matrix = embedder.encode(
+    df['instruction'].astype(str).tolist(),
+    show_progress_bar=True,
+    convert_to_numpy=True
+)
+print(f"✅ Embeddings shape: {embeddings_matrix.shape}")
+python
+Copy
+Edit
+# Cell 4: Enhanced Feature Engineering with Sentence Embeddings
 import re
+import pandas as pd
+from sklearn.preprocessing import LabelEncoder
 
-def create_enhanced_features(df, embeddings_pca, clusters):
-    """Create enhanced features combining embeddings with existing features"""
-    
+def create_enhanced_features(df, embeddings_matrix):
+    """Create enhanced features combining sentence embeddings with existing features"""
     print("🛠️ ENHANCED FEATURE ENGINEERING")
-    print("=" * 40)
-    
+    print("=" * 30)
     features_df = df.copy()
     
-    # Add PCA embeddings as features
-    print("📊 Adding PCA embedding features...")
-    for i in range(embeddings_pca.shape[1]):
-        features_df[f'embed_pca_{i}'] = embeddings_pca[:, i]
-    print(f"   Added {embeddings_pca.shape[1]} embedding features")
+    # 1️⃣ Add raw embedding dimensions as features
+    print("📊 Adding embedding features...")
+    n_dim = embeddings_matrix.shape[1]
+    for i in range(n_dim):
+        features_df[f'embed_{i}'] = embeddings_matrix[:, i]
+    print(f"   Added {n_dim} embedding features")
     
-    # Add cluster assignments
-    print("🎯 Adding cluster features...")
-    features_df['semantic_cluster'] = clusters
-    
-    # Enhanced text analysis features
-    print("📝 Enhanced text analysis...")
-    
-    # Advanced complexity metrics
+    # 2️⃣ Advanced text‐complexity metrics
     def advanced_complexity(text):
         if pd.isna(text) or text == "":
             return 0, 0, 0, 0
-        
         txt = str(text).lower()
         words = txt.split()
-        
         if not words:
             return 0, 0, 0, 0
-        
-        # Lexical diversity
-        unique_ratio = len(set(words)) / len(words)
-        
-        # Technical density
-        tech_patterns = [
-            r'\b(function|class|import|def|return|api|database|algorithm|model|training)\b',
-            r'\b(tensor|numpy|pandas|sklearn|python|javascript|react|sql)\b',
-            r'\b(implement|optimize|debug|refactor|deploy|configure)\b',
-            r'\b(analysis|statistics|machine learning|neural network|regression)\b'
-        ]
-        tech_score = sum(len(re.findall(p, txt)) for p in tech_patterns) / len(words)
-        
-        # Question complexity
-        question_patterns = [
-            r'\bhow to\b', r'\bwhy does\b', r'\bwhat is the difference\b',
-            r'\bcompare\b', r'\bexplain\b', r'\bimplement\b'
-        ]
-        question_complexity = sum(len(re.findall(p, txt)) for p in question_patterns)
-        
-        # Instruction complexity
-        instruction_patterns = [
-            r'\bstep by step\b', r'\bdetailed\b', r'\bcomprehensive\b',
-            r'\btutorial\b', r'\bguide\b', r'\bexample\b'
-        ]
-        instruction_complexity = sum(len(re.findall(p, txt)) for p in instruction_patterns)
-        
-        return unique_ratio, tech_score, question_complexity, instruction_complexity
+        # lexical diversity
+        lex_div = len(set(words)) / len(words)
+        # technical density
+        tech_pat = r'\b(function|class|import|def|return|api|database|algorithm|model|training|tensor|numpy|pandas|sklearn|python)\b'
+        tech_den = len(re.findall(tech_pat, txt)) / len(words)
+        # question complexity
+        ques_pat = r'\bhow to\b|\bwhy does\b|\bwhat is\b|\bcompare\b|\bexplain\b|\bimplement\b'
+        ques_comp = len(re.findall(ques_pat, txt))
+        # instruction complexity
+        instr_pat = r'\bstep by step\b|\bdetailed\b|\btutorial\b|\bguide\b|\bexample\b|\bcomprehensive\b'
+        instr_comp = len(re.findall(instr_pat, txt))
+        return lex_div, tech_den, ques_comp, instr_comp
     
-    print("   Calculating advanced complexity metrics...")
-    complexity_features = []
-    for instruction in features_df['instruction']:
-        complexity_features.append(advanced_complexity(instruction))
-    
-    complexity_df = pd.DataFrame(complexity_features, columns=[
-        'lexical_diversity', 'technical_density', 'question_complexity', 'instruction_complexity_enhanced'
+    print("   Calculating advanced complexity metrics…")
+    comp_feats = [advanced_complexity(t) for t in features_df['instruction']]
+    comp_df = pd.DataFrame(comp_feats, columns=[
+        'lexical_diversity',
+        'technical_density',
+        'question_complexity',
+        'instruction_complexity_enhanced'
     ])
+    for c in comp_df.columns:
+        features_df[c] = comp_df[c].values
     
-    for col in complexity_df.columns:
-        features_df[col] = complexity_df[col].values
-    
-    # Pattern matching features
-    print("🔍 Pattern matching features...")
+    # 3️⃣ Pattern‐matching features
+    print("🔍 Adding pattern‐matching features…")
     patterns = {
-        'simple_what': (r'\bwhat is\b', 'short_expected'),
-        'how_to_basic': (r'\bhow to .{1,20}\?', 'medium_expected'),
-        'implement_complex': (r'\bimplement .{10,}', 'long_expected'),
-        'explain_detailed': (r'\bexplain .{20,}', 'long_expected'),
-        'debug_help': (r'\bdebug|error|fix\b', 'medium_expected'),
-        'code_example': (r'\bexample|sample code\b', 'medium_expected'),
-        'comparison': (r'\bcompare|difference|vs\b', 'medium_expected'),
-        'tutorial_request': (r'\btutorial|guide|walkthrough\b', 'long_expected')
+        'pattern_what_is':       r'\bwhat is\b',
+        'pattern_how_to':        r'\bhow to .{1,20}\?',
+        'pattern_implement':     r'\bimplement .{5,}',
+        'pattern_explain':       r'\bexplain .{20,}',
+        'pattern_debug':         r'\b(debug|error|fix)\b',
+        'pattern_example_code':  r'\b(example|sample code)\b',
+        'pattern_compare':       r'\b(compare|difference|vs)\b',
+        'pattern_tutorial':      r'\b(tutorial|guide|walkthrough)\b'
     }
-    
-    for pattern_name, (regex, expected_length) in patterns.items():
-        features_df[f'pattern_{pattern_name}'] = features_df['instruction'].str.contains(
-            regex, case=False, na=False
-        ).astype(int)
-    
+    for name, rx in patterns.items():
+        features_df[name] = features_df['instruction'].str.contains(rx, case=False, na=False).astype(int)
     print(f"   Added {len(patterns)} pattern features")
     
-    # Basic features
-    print("📋 Adding basic features...")
+    # 4️⃣ Basic instruction stats
+    print("📋 Adding basic text features…")
     features_df['instruction_len'] = features_df['instruction'].astype(str).str.len()
-    features_df['instruction_word_count'] = features_df['instruction'].astype(str).str.split().str.len()
+    features_df['instruction_word_count'] = features_df['instruction'].astype(str).str.split().str.len().fillna(0)
     
-    # Metadata features (encode if present)
-    print("🏷️ Processing metadata features...")
-    categorical_features = ['task_category', 'intent', 'knowledge']
+    # 5️⃣ Metadata encoding
+    print("🏷️ Encoding metadata features…")
     label_encoders = {}
-    
-    for col in categorical_features:
+    for col in ['task_category', 'intent', 'knowledge']:
         if col in features_df.columns:
-            print(f"   Encoding {col}")
             le = LabelEncoder()
             features_df[f'{col}_encoded'] = le.fit_transform(features_df[col].astype(str))
             label_encoders[col] = le
+            print(f"   Encoded {col} ({len(le.classes_)} classes)")
         else:
-            print(f"   {col} not found, using default")
             features_df[f'{col}_encoded'] = 0
-    
-    # Difficulty encoding
+            print(f"   {col} missing → default 0")
+    # difficulty
     if 'difficulty' in features_df.columns:
-        diff_map = {'easy': 1, 'medium': 2, 'hard': 3}
-        features_df['difficulty_encoded'] = features_df['difficulty'].map(diff_map).fillna(2)
+        dm = {'easy':1,'medium':2,'hard':3}
+        features_df['difficulty_encoded'] = features_df['difficulty'].map(dm).fillna(2).astype(int)
         print("   Encoded difficulty from metadata")
     else:
-        features_df['difficulty_encoded'] = 2  # Default to medium
-        print("   Using default difficulty encoding")
+        features_df['difficulty_encoded'] = 2
+        print("   Default difficulty=2")
     
-    print(f"✅ Enhanced features created: {features_df.shape[1]} total features")
-    
+    print(f"✅ Enhanced features created: {features_df.shape[1]} total columns")
     return features_df, label_encoders
 
-# Actually call the function
-print("🚀 Starting enhanced feature engineering...")
-features_df, label_encoders = create_enhanced_features(df_clean, embeddings_pca, clusters)
-
-print(f"\n🔍 Feature summary:")
-print(f"   Total features: {features_df.shape[1]}")
-print(f"   Total samples: {features_df.shape[0]}")
-print(f"   Embedding features: {len([col for col in features_df.columns if col.startswith('embed_pca_')])}")
-print(f"   Pattern features: {len([col for col in features_df.columns if col.startswith('pattern_')])}")
-```
-
+# Apply
+print("🚀 Starting enhanced feature engineering…")
+features_df, label_encoders = create_enhanced_features(df, embeddings_matrix)
+python
+Copy
+Edit
 # Cell 5: Enhanced Model Training
-```python
+import xgboost as xgb
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 def train_enhanced_models(features_df, target_col='actual_output_tokens'):
-    """Train models with enhanced features including embeddings"""
-    
     print("🎯 TRAINING ENHANCED MODELS")
-    print("=" * 40)
-    
-    # Define feature columns
-    embedding_cols = [col for col in features_df.columns if col.startswith('embed_pca_')]
-    pattern_cols = [col for col in features_df.columns if col.startswith('pattern_')]
-    
-    feature_columns = (
-        ['input_tokens_mistral', 'instruction_len', 'instruction_word_count'] +
-        ['lexical_diversity', 'technical_density', 'question_complexity', 'instruction_complexity_enhanced'] +
-        ['semantic_cluster', 'difficulty_encoded'] +
-        [col for col in features_df.columns if col.endswith('_encoded')] +
-        embedding_cols +
-        pattern_cols
-    )
-    
-    # Remove duplicates and non-existent columns
-    feature_columns = [col for col in feature_columns if col in features_df.columns]
-    feature_columns = list(dict.fromkeys(feature_columns))  # Remove duplicates
-    
-    print(f"📊 Using {len(feature_columns)} features:")
-    print(f"   Embedding features: {len(embedding_cols)}")
-    print(f"   Pattern features: {len(pattern_cols)}")
-    print(f"   Traditional features: {len(feature_columns) - len(embedding_cols) - len(pattern_cols)}")
-    
-    # Prepare data
-    X = features_df[feature_columns].copy()
-    y = features_df[target_col].copy()
-    
-    # Handle missing values
-    X = X.fillna(0)
-    
-    # Remove samples with missing target
-    mask = ~y.isnull()
-    X = X[mask]
-    y = y[mask]
-    
-    print(f"📊 Training data: {len(X)} samples × {len(feature_columns)} features")
-    print(f"🎯 Target range: {y.min():.0f} - {y.max():.0f} tokens (mean: {y.mean():.1f})")
-    
-    # Split data
+    print("=" * 30)
+    # select features
+    embed_cols   = [c for c in features_df.columns if c.startswith('embed_')]
+    pattern_cols = [c for c in features_df.columns if c.startswith('pattern_')]
+    basic_cols   = ['input_tokens_mistral','instruction_len','instruction_word_count',
+                    'lexical_diversity','technical_density',
+                    'question_complexity','instruction_complexity_enhanced',
+                    'difficulty_encoded'] + list(label_encoders.keys())
+    # actually encoded cols have suffix "_encoded"
+    enc_cols = [f"{c}_encoded" for c in label_encoders.keys()]
+    feature_cols = embed_cols + pattern_cols + basic_cols + enc_cols
+    # dedupe & filter
+    feature_cols = [c for i,c in enumerate(feature_cols) if c in features_df.columns and c not in feature_cols[:i]]
+    print(f"📊 Using {len(feature_cols)} features")
+    X = features_df[feature_cols].fillna(0)
+    y = features_df[target_col]
+    # split
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-    
-    # Scale features for better performance
+    # scale for XGB
     scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    X_test_scaled = scaler.transform(X_test)
-    
-    # Train models
-    models = {}
+    X_train_sc = scaler.fit_transform(X_train)
+    X_test_sc  = scaler.transform(X_test)
     results = {}
-    
-    # Random Forest (handles mixed features well)
-    print("\n🌳 Training Random Forest...")
-    rf = RandomForestRegressor(
-        n_estimators=300, 
-        max_depth=20, 
-        min_samples_split=5,
-        min_samples_leaf=2,
-        random_state=42, 
-        n_jobs=-1
-    )
-    rf.fit(X_train, y_train)  # RF doesn't need scaling
-    models['Random Forest'] = rf
-    
+    # Random Forest
+    print("🌳 Training Random Forest…")
+    rf = RandomForestRegressor(random_state=42, n_jobs=-1)
+    rf.fit(X_train, y_train)
+    results['Random Forest'] = rf
     # XGBoost
-    print("🚀 Training XGBoost...")
-    xgb_reg = xgb.XGBRegressor(
-        n_estimators=300,
-        max_depth=8,
-        learning_rate=0.05,
-        subsample=0.8,
-        colsample_bytree=0.8,
-        random_state=42,
-        n_jobs=-1
-    )
-    xgb_reg.fit(X_train, y_train)
-    models['XGBoost'] = xgb_reg
-    
-    # Evaluate models
-    for name, model in models.items():
-        print(f"\n📊 Evaluating {name}...")
-        
-        train_pred = model.predict(X_train)
-        test_pred = model.predict(X_test)
-        
-        train_mae = mean_absolute_error(y_train, train_pred)
-        test_mae = mean_absolute_error(y_test, test_pred)
-        test_rmse = np.sqrt(mean_squared_error(y_test, test_pred))
-        test_r2 = r2_score(y_test, test_pred)
-        
-        # Accuracy metrics
-        errors = np.abs(y_test - test_pred)
-        within_5 = (errors <= 5).mean() * 100
-        within_10 = (errors <= 10).mean() * 100
-        within_20 = (errors <= 20).mean() * 100
-        within_50 = (errors <= 50).mean() * 100
-        
-        results[name] = {
-            'model': model,
-            'train_mae': train_mae,
-            'test_mae': test_mae,
-            'test_rmse': test_rmse,
-            'test_r2': test_r2,
-            'within_5': within_5,
-            'within_10': within_10,
-            'within_20': within_20,
-            'within_50': within_50,
-            'test_pred': test_pred,
-            'feature_importance': None
-        }
-        
-        # Feature importance
-        if hasattr(model, 'feature_importances_'):
-            importance_df = pd.DataFrame({
-                'feature': feature_columns,
-                'importance': model.feature_importances_
-            }).sort_values('importance', ascending=False)
-            results[name]['feature_importance'] = importance_df
-        
-        print(f"   Train MAE: {train_mae:.2f} | Test MAE: {test_mae:.2f}")
-        print(f"   Test RMSE: {test_rmse:.2f} | Test R²: {test_r2:.3f}")
-        print(f"   Within ±5: {within_5:.1f}% | ±10: {within_10:.1f}% | ±20: {within_20:.1f}% | ±50: {within_50:.1f}%")
-    
-    # Best model
-    best_model_name = min(results.keys(), key=lambda x: results[x]['test_mae'])
-    print(f"\n🏆 Best Model: {best_model_name}")
-    print(f"   Test MAE: {results[best_model_name]['test_mae']:.2f} tokens")
-    
+    print("🚀 Training XGBoost…")
+    xgb_reg = xgb.XGBRegressor(random_state=42, n_jobs=-1)
+    xgb_reg.fit(X_train_sc, y_train)
+    results['XGBoost'] = xgb_reg
+    # evaluate
+    for name, model in results.items():
+        print(f"\n📊 Evaluating {name}")
+        if name=='XGBoost':
+            pred_train = model.predict(X_train_sc)
+            pred_test  = model.predict(X_test_sc)
+        else:
+            pred_train = model.predict(X_train)
+            pred_test  = model.predict(X_test)
+        mae_train = mean_absolute_error(y_train, pred_train)
+        mae_test  = mean_absolute_error(y_test, pred_test)
+        rmse_test = mean_squared_error(y_test, pred_test, squared=False)
+        r2_test   = r2_score(y_test, pred_test)
+        err = abs(y_test - pred_test)
+        print(f"   Train MAE: {mae_train:.2f} | Test MAE: {mae_test:.2f}")
+        print(f"   Test RMSE: {rmse_test:.2f} | Test R²: {r2_test:.3f}")
+        print(f"   ±5 tok: {(err<=5).mean()*100:.1f}% | ±10 tok: {(err<=10).mean()*100:.1f}%")
+    # choose best
+    best = min(results, key=lambda n: mean_absolute_error(y_test, 
+                     (results[n].predict(X_test_sc) if n=='XGBoost' else results[n].predict(X_test))))
+    print(f"\n🏆 Best model: {best}")
     return {
-        'results': results,
-        'best_model_name': best_model_name,
-        'feature_columns': feature_columns,
+        'models': results,
+        'best_model': results[best],
+        'feature_columns': feature_cols,
         'scaler': scaler,
         'X_test': X_test,
+        'X_test_sc': X_test_sc,
         'y_test': y_test
     }
 
-# Actually call the function
-print("🚀 Starting enhanced model training...")
+# Apply
+print("🚀 Starting model training…")
 training_results = train_enhanced_models(features_df)
-
-print(f"\n🎉 Training complete!")
-print(f"Best model: {training_results['best_model_name']}")
-print(f"Best MAE: {training_results['results'][training_results['best_model_name']]['test_mae']:.2f}")
-```
-
+python
+Copy
+Edit
 # Cell 6: Feature Importance Analysis
-```python
+import matplotlib.pyplot as plt
+
 def analyze_feature_importance(training_results):
-    """Analyze which features are most important"""
-    
     print("📊 FEATURE IMPORTANCE ANALYSIS")
-    print("=" * 40)
-    
-    for model_name, result in training_results['results'].items():
-        if result['feature_importance'] is not None:
-            print(f"\n🔍 {model_name} - Top 20 Features:")
-            top_features = result['feature_importance'].head(20)
-            
-            for idx, row in top_features.iterrows():
-                feature_type = ""
-                if row['feature'].startswith('embed_pca_'):
-                    feature_type = "📊 Embedding"
-                elif row['feature'].startswith('pattern_'):
-                    feature_type = "🎯 Pattern"
-                elif row['feature'] in ['input_tokens_mistral', 'instruction_len', 'instruction_word_count']:
-                    feature_type = "📝 Basic"
-                else:
-                    feature_type = "🔧 Enhanced"
-                
-                print(f"   {feature_type} {row['feature']}: {row['importance']:.4f}")
-            
-            # Visualize top features
-            plt.figure(figsize=(10, 8))
-            top_10 = top_features.head(10)
-            plt.barh(range(len(top_10)), top_10['importance'])
-            plt.yticks(range(len(top_10)), top_10['feature'])
-            plt.xlabel('Feature Importance')
-            plt.title(f'{model_name} - Top 10 Feature Importance')
+    print("=" * 30)
+    for name, model in training_results['models'].items():
+        if hasattr(model, 'feature_importances_'):
+            fi = model.feature_importances_
+            cols = training_results['feature_columns']
+            imp_df = pd.DataFrame({'feature': cols, 'importance': fi})
+            top20 = imp_df.nlargest(20, 'importance')
+            print(f"\n🔍 {name} - Top 20 features:")
+            for _, row in top20.iterrows():
+                print(f"   {row['feature']}: {row['importance']:.4f}")
+            plt.figure(figsize=(8,6))
+            plt.barh(top20['feature'], top20['importance'])
+            plt.title(f"{name} Top 20 Feature Importance")
             plt.gca().invert_yaxis()
-            plt.tight_layout()
             plt.show()
-            
-            # Summary by feature type
-            embedding_importance = top_features[top_features['feature'].str.startswith('embed_pca_')]['importance'].sum()
-            pattern_importance = top_features[top_features['feature'].str.startswith('pattern_')]['importance'].sum()
-            basic_importance = top_features[top_features['feature'].isin(['input_tokens_mistral', 'instruction_len', 'instruction_word_count'])]['importance'].sum()
-            
-            print(f"\n📊 {model_name} Feature Type Summary:")
-            print(f"   Embedding features importance: {embedding_importance:.4f}")
-            print(f"   Pattern features importance: {pattern_importance:.4f}")
-            print(f"   Basic features importance: {basic_importance:.4f}")
 
-# Actually call the function
-print("🚀 Starting feature importance analysis...")
+# Apply
+print("🚀 Analyzing feature importance…")
 analyze_feature_importance(training_results)
-```
-
+python
+Copy
+Edit
 # Cell 7: Enhanced Query Testing Interface
-```python
-def create_enhanced_query_tester(training_results, embeddings_model, pca, kmeans, label_encoders):
-    """Create query tester with embedding features"""
-    
-    def predict_with_embeddings(query, difficulty='medium', task_category='Information seeking', 
-                               intent='informational', knowledge='intermediate'):
-        """Predict tokens using enhanced features including embeddings"""
-        
-        print(f"🧪 ENHANCED PREDICTION (with embeddings)")
-        print(f"   Query: '{query[:60]}{'...' if len(query) > 60 else ''}'")
-        print()
-        
-        # Generate embedding for query
-        query_embedding = embeddings_model.encode([query])
-        query_embedding_pca = pca.transform(query_embedding)
-        query_cluster = kmeans.predict(query_embedding_pca)[0]
-        
-        # Extract all features
-        features = {}
-        
-        # Basic features
-        features['input_tokens_mistral'] = len(query.split()) * 1.3  # Rough approximation
-        features['instruction_len'] = len(query)
-        features['instruction_word_count'] = len(query.split())
-        
-        # Enhanced complexity
-        words = query.lower().split()
-        if words:
-            features['lexical_diversity'] = len(set(words)) / len(words)
-            tech_patterns = [r'\b(function|class|import|def|return|api|database|algorithm|model)\b']
-            features['technical_density'] = sum(len(re.findall(p, query.lower())) for p in tech_patterns) / len(words)
-        else:
-            features['lexical_diversity'] = 0
-            features['technical_density'] = 0
-        
-        features['question_complexity'] = len(re.findall(r'\bhow to\b|\bwhy does\b|\bexplain\b', query.lower()))
-        features['instruction_complexity_enhanced'] = len(re.findall(r'\bstep by step\b|\bdetailed\b|\btutorial\b', query.lower()))
-        
-        # Embedding features
-        for i in range(query_embedding_pca.shape[1]):
-            features[f'embed_pca_{i}'] = query_embedding_pca[0, i]
-        
-        # Cluster
-        features['semantic_cluster'] = query_cluster
-        
-        # Pattern features
-        patterns = {
-            'simple_what': r'\bwhat is\b',
-            'how_to_basic': r'\bhow to .{1,20}\?',
-            'implement_complex': r'\bimplement .{10,}',
-            'explain_detailed': r'\bexplain .{20,}',
-            'debug_help': r'\bdebug|error|fix\b',
-            'code_example': r'\bexample|sample code\b',
-            'comparison': r'\bcompare|difference|vs\b',
-            'tutorial_request': r'\btutorial|guide|walkthrough\b'
-        }
-        
-        for pattern_name, regex in patterns.items():
-            features[f'pattern_{pattern_name}'] = int(bool(re.search(regex, query.lower())))
-        
-        # Metadata
-        features['difficulty_encoded'] = {'easy': 1, 'medium': 2, 'hard': 3}.get(difficulty, 2)
-        
-        # Encode categorical features
-        categorical_map = {
-            'task_category': task_category,
-            'intent': intent,
-            'knowledge': knowledge
-        }
-        
-        for col, value in categorical_map.items():
+def create_query_tester(training_results, embedder, label_encoders):
+    def predict(query, difficulty='medium', task_category='Information seeking',
+                intent='informational', knowledge='intermediate'):
+        print(f"🧪 Predicting for: {query[:60]}{'...' if len(query)>60 else ''}")
+        # embed
+        q_emb = embedder.encode([query], convert_to_numpy=True)[0]
+        feat = {}
+        # embedding dims
+        for i, val in enumerate(q_emb):
+            feat[f'embed_{i}'] = val
+        # complexity
+        lex_div, tech_den, qc, ic = advanced_complexity(query)
+        feat.update({
+            'lexical_diversity': lex_div,
+            'technical_density': tech_den,
+            'question_complexity': qc,
+            'instruction_complexity_enhanced': ic,
+            'instruction_len': len(query),
+            'instruction_word_count': len(query.split())
+        })
+        # patterns
+        for name, rx in patterns.items():
+            feat[name] = int(bool(re.search(rx, query, re.IGNORECASE)))
+        # metadata
+        feat['difficulty_encoded'] = {'easy':1,'medium':2,'hard':3}.get(difficulty,2)
+        for col, value in [('task_category', task_category),
+                           ('intent', intent),
+                           ('knowledge', knowledge)]:
             if col in label_encoders:
                 try:
-                    features[f'{col}_encoded'] = label_encoders[col].transform([value])[0]
+                    feat[f'{col}_encoded'] = label_encoders[col].transform([value])[0]
                 except:
-                    features[f'{col}_encoded'] = 0
+                    feat[f'{col}_encoded'] = 0
             else:
-                features[f'{col}_encoded'] = 0
-        
-        # Create feature vector
-        feature_vector = []
-        for col in training_results['feature_columns']:
-            feature_vector.append(features.get(col, 0))
-        
-        # Make prediction
-        best_model = training_results['results'][training_results['best_model_name']]['model']
-        prediction = best_model.predict([feature_vector])[0]
-        
-        mae = training_results['results'][training_results['best_model_name']]['test_mae']
-        
-        print(f"🎯 Prediction: {prediction:.0f} tokens (±{mae:.1f} MAE)")
-        print(f"🎯 Semantic cluster: {query_cluster}")
-        print(f"🧠 Using {len(feature_vector)} enhanced features including embeddings")
-        
-        return prediction
-    
-    return predict_with_embeddings
+                feat[f'{col}_encoded'] = 0
+        # build vector
+        vec = [feat.get(c, 0) for c in training_results['feature_columns']]
+        model = training_results['best_model']
+        # scale if XGBoost
+        if isinstance(model, xgb.XGBRegressor):
+            vec = training_results['scaler'].transform([vec])
+        pred = model.predict([vec])[0]
+        print(f"🎯 Predicted tokens: {pred:.0f}")
+        return pred
+    return predict
 
-# Actually create the query tester
-print("🚀 Creating enhanced query tester...")
-query_tester = create_enhanced_query_tester(training_results, embedding_model, pca_model, kmeans_model, label_encoders)
+# Create tester
+print("🚀 Creating query tester…")
+patterns = {
+    'pattern_what_is':       r'\bwhat is\b',
+    'pattern_how_to':        r'\bhow to .{1,20}\?',
+    'pattern_implement':     r'\bimplement .{5,}',
+    'pattern_explain':       r'\bexplain .{20,}',
+    'pattern_debug':         r'\b(debug|error|fix)\b',
+    'pattern_example_code':  r'\b(example|sample code)\b',
+    'pattern_compare':       r'\b(compare|difference|vs)\b',
+    'pattern_tutorial':      r'\b(tutorial|guide|walkthrough)\b'
+}
+def advanced_complexity(text):
+    txt = str(text).lower(); words = txt.split()
+    if not words: return (0,0,0,0)
+    lex_div = len(set(words))/len(words)
+    tech_den = len(re.findall(r'\b(function|class|import|def|return|api|database|algorithm|model)\b', txt))/len(words)
+    ques_comp = len(re.findall(r'\bhow to\b|\bwhy does\b|\bwhat is\b', txt))
+    instr_comp = len(re.findall(r'\bstep by step\b|\bdetailed\b|\btutorial\b', txt))
+    return lex_div, tech_den, ques_comp, instr_comp
 
-# Test with sample queries
-print("\n🧪 Testing sample queries:")
+query_tester = create_query_tester(training_results, embedder, label_encoders)
 
-test_queries = [
-    "What is Python?",
-    "How do I sort a list in Python?", 
-    "Implement a binary search algorithm with error handling",
-    "Debug this error: AttributeError"
-]
-
-for query in test_queries:
-    print(f"\n" + "="*50)
-    prediction = query_tester(query)
+# Test
+for q in ["What is Python?", "How to sort a list in Python?"]:
+    print("\n" + "-"*40)
+    query_tester(q)
 ```
 
 ## About Me
