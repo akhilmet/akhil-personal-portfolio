@@ -1,5 +1,5 @@
 ```
-# Cell 1: Load and Clean Data
+# Cell 1: Load and Clean Data - Fixed Array Handling
 import os
 import glob
 import pandas as pd
@@ -29,46 +29,52 @@ def load_and_clean_data():
     
     print(f"✅ Loaded {len(df)} samples from {len(parquet_files)} files")
     
-    # Extract response text - fixed version
-    def extract_response_text(responses_data):
+    # Extract response text - completely rewritten to avoid array issues
+    print("🔄 Extracting response text...")
+    
+    response_texts = []
+    for idx, responses_data in enumerate(df['responses']):
         try:
             if responses_data is None:
-                return ""
-            if pd.isna(responses_data):
-                return ""
+                response_texts.append("")
+                continue
             
-            # Handle different data types
-            if isinstance(responses_data, str):
-                return responses_data
-            
-            if isinstance(responses_data, list):
+            # Convert to string first to avoid array ambiguity
+            if hasattr(responses_data, 'dtype'):  # It's a numpy array
                 if len(responses_data) == 0:
-                    return ""
-                first = responses_data[0]
-                if isinstance(first, dict):
-                    for key in ('text', 'content', 'value', 'response'):
-                        if key in first:
-                            return str(first[key])
-                    return str(first)
-                else:
-                    return str(first)
+                    response_texts.append("")
+                    continue
+                first_item = responses_data[0]
+            elif isinstance(responses_data, list):
+                if len(responses_data) == 0:
+                    response_texts.append("")
+                    continue
+                first_item = responses_data[0]
+            elif isinstance(responses_data, str):
+                response_texts.append(responses_data)
+                continue
+            else:
+                response_texts.append(str(responses_data))
+                continue
             
-            if isinstance(responses_data, dict):
+            # Handle the first item
+            if isinstance(first_item, dict):
                 for key in ('text', 'content', 'value', 'response'):
-                    if key in responses_data:
-                        return str(responses_data[key])
-                return str(responses_data)
-            
-            # Fallback
-            return str(responses_data)
-            
+                    if key in first_item:
+                        response_texts.append(str(first_item[key]))
+                        break
+                else:
+                    response_texts.append(str(first_item))
+            else:
+                response_texts.append(str(first_item))
+                
         except Exception as e:
-            print(f"Error processing response: {e}")
-            return ""
+            if idx < 5:  # Only print first few errors
+                print(f"Error processing response {idx}: {e}")
+            response_texts.append("")
     
-    # Apply extraction safely
-    print("🔄 Extracting response text...")
-    df['response'] = df['responses'].apply(extract_response_text)
+    # Assign the extracted responses
+    df['response'] = response_texts
     
     # Calculate tokens
     print("🔥 Loading Mistral tokenizer...")
@@ -76,23 +82,26 @@ def load_and_clean_data():
     
     def count_tokens(text):
         try:
-            if pd.isna(text) or text == "" or text is None:
+            if not text or pd.isna(text):
                 return 0
-            text_str = str(text)
-            if len(text_str.strip()) == 0:
+            text_str = str(text).strip()
+            if len(text_str) == 0:
                 return 0
             req = ChatCompletionRequest(messages=[UserMessage(content=text_str)])
             enc = tokenizer.encode_chat_completion(req)
             return len(enc.tokens)
-        except Exception as e:
-            print(f"Error tokenizing: {e}")
+        except Exception:
             return 0
     
     print("🎯 Calculating input tokens...")
-    df['input_tokens_mistral'] = df['instruction'].apply(count_tokens)
+    df['input_tokens_mistral'] = [count_tokens(inst) for inst in df['instruction']]
     
     print("🎯 Calculating output tokens...")
-    df['actual_output_tokens'] = df['response'].apply(count_tokens)
+    df['actual_output_tokens'] = [count_tokens(resp) for resp in df['response']]
+    
+    # Convert to proper types
+    df['input_tokens_mistral'] = pd.Series(df['input_tokens_mistral'], dtype='int64')
+    df['actual_output_tokens'] = pd.Series(df['actual_output_tokens'], dtype='int64')
     
     # Remove missing or zero tokens
     initial_count = len(df)
@@ -110,12 +119,13 @@ def load_and_clean_data():
     df_clean = df[~suspicious_mask].copy()
     
     # Remove extreme outliers
-    q1_out = df_clean['actual_output_tokens'].quantile(0.01)
-    q99_out = df_clean['actual_output_tokens'].quantile(0.99)
-    df_clean = df_clean[
-        (df_clean['actual_output_tokens'] >= q1_out) & 
-        (df_clean['actual_output_tokens'] <= q99_out)
-    ].copy()
+    if len(df_clean) > 0:
+        q1_out = df_clean['actual_output_tokens'].quantile(0.01)
+        q99_out = df_clean['actual_output_tokens'].quantile(0.99)
+        df_clean = df_clean[
+            (df_clean['actual_output_tokens'] >= q1_out) & 
+            (df_clean['actual_output_tokens'] <= q99_out)
+        ].copy()
     
     final_count = len(df_clean)
     removed_count = initial_count - final_count
