@@ -1,186 +1,9 @@
-```
-# Cell 2: Generate Embeddings
-from sentence_transformers import SentenceTransformer
-import numpy as np
-
-def generate_embeddings(df):
-    """Generate semantic embeddings for instructions"""
-    
-    print("🤖 GENERATING SEMANTIC EMBEDDINGS")
-    print("=" * 40)
-    
-    # Load sentence transformer model
-    print("📥 Loading sentence transformer model...")
-    model = SentenceTransformer('all-MiniLM-L6-v2')  # Lightweight, fast model
-    print("✅ Model loaded!")
-    
-    # Prepare instructions
-    print("🔄 Preparing instructions...")
-    instructions = df['instruction'].astype(str).fillna("").tolist()
-    print(f"📊 Processing {len(instructions)} instructions")
-    
-    # Generate embeddings in batches to avoid memory issues
-    print("🔄 Generating embeddings...")
-    batch_size = 1000
-    all_embeddings = []
-    
-    for i in range(0, len(instructions), batch_size):
-        batch_end = min(i + batch_size, len(instructions))
-        batch = instructions[i:batch_end]
-        
-        print(f"   Processing batch {i//batch_size + 1}: samples {i+1}-{batch_end}")
-        batch_embeddings = model.encode(batch, show_progress_bar=False)
-        all_embeddings.extend(batch_embeddings)
-        
-        # Progress update
-        progress = (batch_end / len(instructions)) * 100
-        print(f"   Progress: {progress:.1f}% complete")
-    
-    embeddings_matrix = np.array(all_embeddings)
-    print(f"✅ Generated embeddings: {embeddings_matrix.shape}")
-    print(f"📊 Embedding statistics:")
-    print(f"   Shape: {embeddings_matrix.shape}")
-    print(f"   Mean: {embeddings_matrix.mean():.4f}")
-    print(f"   Std: {embeddings_matrix.std():.4f}")
-    print(f"   Min: {embeddings_matrix.min():.4f}")
-    print(f"   Max: {embeddings_matrix.max():.4f}")
-    
-    return embeddings_matrix, model
-
-# Actually call the function and generate embeddings
-print("🚀 Starting embedding generation...")
-embeddings_matrix, embedding_model = generate_embeddings(df_clean)
-
-# Show some sample embeddings
-print(f"\n🔍 Sample embeddings:")
-print(f"First instruction: '{df_clean.iloc[0]['instruction'][:60]}...'")
-print(f"Embedding (first 10 dims): {embeddings_matrix[0][:10]}")
-print(f"\nSecond instruction: '{df_clean.iloc[1]['instruction'][:60]}...'")
-print(f"Embedding (first 10 dims): {embeddings_matrix[1][:10]}")
-
-print(f"\n✅ Embeddings generation complete!")
-```
-```
-# Enhanced Token Predictor with Embeddings and Data Cleaning
-# Adding semantic embeddings to improve prediction accuracy
-
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.preprocessing import LabelEncoder, StandardScaler
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-import xgboost as xgb
-import re
-import pickle
-import warnings
-warnings.filterwarnings('ignore')
-
-# For embeddings
-from sentence_transformers import SentenceTransformer
+# Cell 3: Process Embeddings - PCA and Clustering
+```python
 from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans
+import matplotlib.pyplot as plt
 
-print("🚀 Enhanced Token Predictor with Embeddings")
-print("=" * 60)
-print("🎯 Adding semantic embeddings + data cleaning")
-
-# Cell 1: Load and Clean Data
-def load_and_clean_data():
-    """Load data and identify suspicious labels"""
-    
-    # Assuming df_with_tokens is already loaded from previous notebook
-    # If not, you'll need to run the data loading cells first
-    
-    print("🧹 CLEANING DATA - Identifying Suspicious Labels")
-    print("=" * 50)
-    
-    # Load your existing data (replace with actual loading if needed)
-    # df = df_with_tokens.copy()
-    
-    # For now, let's create a synthetic check - replace with your actual data
-    print("⚠️ Replace this section with your actual df_with_tokens")
-    print("   This is placeholder code showing the cleaning approach")
-    
-    # Identify suspicious short responses (high input, very low output)
-    def identify_suspicious_labels(df):
-        suspicious_short = df[
-            (df['actual_output_tokens'] < 10) & 
-            (df['input_tokens_mistral'] > 100)
-        ]
-        
-        suspicious_ratios = df[
-            df['actual_output_tokens'] / df['input_tokens_mistral'] < 0.01
-        ]
-        
-        print(f"🚨 Found {len(suspicious_short)} suspicious short labels")
-        print(f"🚨 Found {len(suspicious_ratios)} suspicious ratio labels")
-        
-        return suspicious_short, suspicious_ratios
-    
-    # Remove or flag suspicious data
-    def clean_dataset(df):
-        print("🧹 Cleaning dataset...")
-        
-        # Remove extreme outliers
-        initial_count = len(df)
-        
-        # Remove suspiciously low output tokens for long inputs
-        df_clean = df[~(
-            (df['actual_output_tokens'] < 10) & 
-            (df['input_tokens_mistral'] > 100)
-        )].copy()
-        
-        # Remove extreme outliers in general
-        q1_out = df_clean['actual_output_tokens'].quantile(0.01)
-        q99_out = df_clean['actual_output_tokens'].quantile(0.99)
-        df_clean = df_clean[
-            (df_clean['actual_output_tokens'] >= q1_out) & 
-            (df_clean['actual_output_tokens'] <= q99_out)
-        ].copy()
-        
-        removed_count = initial_count - len(df_clean)
-        print(f"✅ Removed {removed_count} suspicious/outlier samples")
-        print(f"📊 Clean dataset: {len(df_clean)} samples")
-        
-        return df_clean
-    
-    return None  # Placeholder - replace with actual cleaned data
-
-# Cell 2: Generate Embeddings
-def generate_embeddings(df):
-    """Generate semantic embeddings for instructions"""
-    
-    print("🤖 GENERATING SEMANTIC EMBEDDINGS")
-    print("=" * 40)
-    
-    # Load sentence transformer model
-    print("📥 Loading sentence transformer model...")
-    model = SentenceTransformer('all-MiniLM-L6-v2')  # Lightweight, fast model
-    print("✅ Model loaded!")
-    
-    # Generate embeddings for instructions
-    print("🔄 Generating embeddings for instructions...")
-    instructions = df['instruction'].astype(str).tolist()
-    
-    # Generate embeddings in batches to avoid memory issues
-    batch_size = 1000
-    all_embeddings = []
-    
-    for i in range(0, len(instructions), batch_size):
-        batch = instructions[i:i + batch_size]
-        batch_embeddings = model.encode(batch, show_progress_bar=True)
-        all_embeddings.extend(batch_embeddings)
-        print(f"   Processed {min(i + batch_size, len(instructions))}/{len(instructions)} instructions")
-    
-    embeddings_matrix = np.array(all_embeddings)
-    print(f"✅ Generated embeddings: {embeddings_matrix.shape}")
-    
-    return embeddings_matrix, model
-
-# Cell 3: Dimensionality Reduction and Clustering
 def process_embeddings(embeddings_matrix, n_components=50, n_clusters=20):
     """Reduce dimensionality and add clustering features"""
     
@@ -195,6 +18,11 @@ def process_embeddings(embeddings_matrix, n_components=50, n_clusters=20):
     explained_variance = pca.explained_variance_ratio_.sum()
     print(f"✅ PCA complete - explained variance: {explained_variance:.1%}")
     
+    # Show explained variance per component (first 10)
+    print(f"📊 Top 10 components explained variance:")
+    for i in range(min(10, len(pca.explained_variance_ratio_))):
+        print(f"   Component {i+1}: {pca.explained_variance_ratio_[i]:.3f}")
+    
     # K-means clustering for semantic grouping
     print(f"🎯 K-means clustering: {n_clusters} clusters")
     kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
@@ -202,10 +30,26 @@ def process_embeddings(embeddings_matrix, n_components=50, n_clusters=20):
     
     cluster_counts = pd.Series(clusters).value_counts().sort_index()
     print(f"✅ Clustering complete - cluster sizes: {cluster_counts.min()}-{cluster_counts.max()}")
+    print(f"📊 Cluster distribution:")
+    for i in range(min(10, n_clusters)):
+        print(f"   Cluster {i}: {cluster_counts[i]} samples")
     
     return embeddings_pca, clusters, pca, kmeans
 
+# Actually call the function
+print("🚀 Starting embedding processing...")
+embeddings_pca, clusters, pca_model, kmeans_model = process_embeddings(embeddings_matrix)
+
+print(f"\n🔍 Results summary:")
+print(f"   PCA shape: {embeddings_pca.shape}")
+print(f"   Cluster assignments: {len(clusters)} samples")
+print(f"   Unique clusters: {len(np.unique(clusters))}")
+```
+
 # Cell 4: Enhanced Feature Engineering
+```python
+import re
+
 def create_enhanced_features(df, embeddings_pca, clusters):
     """Create enhanced features combining embeddings with existing features"""
     
@@ -218,6 +62,7 @@ def create_enhanced_features(df, embeddings_pca, clusters):
     print("📊 Adding PCA embedding features...")
     for i in range(embeddings_pca.shape[1]):
         features_df[f'embed_pca_{i}'] = embeddings_pca[:, i]
+    print(f"   Added {embeddings_pca.shape[1]} embedding features")
     
     # Add cluster assignments
     print("🎯 Adding cluster features...")
@@ -265,17 +110,20 @@ def create_enhanced_features(df, embeddings_pca, clusters):
         
         return unique_ratio, tech_score, question_complexity, instruction_complexity
     
-    complexity_features = features_df['instruction'].apply(lambda x: pd.Series(advanced_complexity(x)))
-    features_df['lexical_diversity'] = complexity_features[0]
-    features_df['technical_density'] = complexity_features[1]
-    features_df['question_complexity'] = complexity_features[2]
-    features_df['instruction_complexity_enhanced'] = complexity_features[3]
+    print("   Calculating advanced complexity metrics...")
+    complexity_features = []
+    for instruction in features_df['instruction']:
+        complexity_features.append(advanced_complexity(instruction))
     
-    # Semantic similarity to known patterns
+    complexity_df = pd.DataFrame(complexity_features, columns=[
+        'lexical_diversity', 'technical_density', 'question_complexity', 'instruction_complexity_enhanced'
+    ])
+    
+    for col in complexity_df.columns:
+        features_df[col] = complexity_df[col].values
+    
+    # Pattern matching features
     print("🔍 Pattern matching features...")
-    
-    # Common query patterns and their typical response lengths
-    pattern_features = {}
     patterns = {
         'simple_what': (r'\bwhat is\b', 'short_expected'),
         'how_to_basic': (r'\bhow to .{1,20}\?', 'medium_expected'),
@@ -292,39 +140,56 @@ def create_enhanced_features(df, embeddings_pca, clusters):
             regex, case=False, na=False
         ).astype(int)
     
-    # Original features (production-safe)
-    print("📋 Adding original production-safe features...")
+    print(f"   Added {len(patterns)} pattern features")
     
     # Basic features
-    features_df['input_tokens_mistral'] = features_df.get('input_tokens_mistral', 0)
+    print("📋 Adding basic features...")
     features_df['instruction_len'] = features_df['instruction'].astype(str).str.len()
     features_df['instruction_word_count'] = features_df['instruction'].astype(str).str.split().str.len()
     
     # Metadata features (encode if present)
-    categorical_features = ['task_category', 'intent', 'knowledge', 'question_type']
+    print("🏷️ Processing metadata features...")
+    categorical_features = ['task_category', 'intent', 'knowledge']
     label_encoders = {}
     
     for col in categorical_features:
         if col in features_df.columns:
+            print(f"   Encoding {col}")
             le = LabelEncoder()
             features_df[f'{col}_encoded'] = le.fit_transform(features_df[col].astype(str))
             label_encoders[col] = le
         else:
-            # Create default values if metadata missing
+            print(f"   {col} not found, using default")
             features_df[f'{col}_encoded'] = 0
     
     # Difficulty encoding
     if 'difficulty' in features_df.columns:
         diff_map = {'easy': 1, 'medium': 2, 'hard': 3}
         features_df['difficulty_encoded'] = features_df['difficulty'].map(diff_map).fillna(2)
+        print("   Encoded difficulty from metadata")
     else:
         features_df['difficulty_encoded'] = 2  # Default to medium
+        print("   Using default difficulty encoding")
     
     print(f"✅ Enhanced features created: {features_df.shape[1]} total features")
     
     return features_df, label_encoders
 
+# Actually call the function
+print("🚀 Starting enhanced feature engineering...")
+features_df, label_encoders = create_enhanced_features(df_clean, embeddings_pca, clusters)
+
+print(f"\n🔍 Feature summary:")
+print(f"   Total features: {features_df.shape[1]}")
+print(f"   Total samples: {features_df.shape[0]}")
+print(f"   Embedding features: {len([col for col in features_df.columns if col.startswith('embed_pca_')])}")
+print(f"   Pattern features: {len([col for col in features_df.columns if col.startswith('pattern_')])}")
+```
+
 # Cell 5: Enhanced Model Training
+```python
+from sklearn.preprocessing import StandardScaler
+
 def train_enhanced_models(features_df, target_col='actual_output_tokens'):
     """Train models with enhanced features including embeddings"""
     
@@ -466,7 +331,17 @@ def train_enhanced_models(features_df, target_col='actual_output_tokens'):
         'y_test': y_test
     }
 
+# Actually call the function
+print("🚀 Starting enhanced model training...")
+training_results = train_enhanced_models(features_df)
+
+print(f"\n🎉 Training complete!")
+print(f"Best model: {training_results['best_model_name']}")
+print(f"Best MAE: {training_results['results'][training_results['best_model_name']]['test_mae']:.2f}")
+```
+
 # Cell 6: Feature Importance Analysis
+```python
 def analyze_feature_importance(training_results):
     """Analyze which features are most important"""
     
@@ -501,8 +376,24 @@ def analyze_feature_importance(training_results):
             plt.gca().invert_yaxis()
             plt.tight_layout()
             plt.show()
+            
+            # Summary by feature type
+            embedding_importance = top_features[top_features['feature'].str.startswith('embed_pca_')]['importance'].sum()
+            pattern_importance = top_features[top_features['feature'].str.startswith('pattern_')]['importance'].sum()
+            basic_importance = top_features[top_features['feature'].isin(['input_tokens_mistral', 'instruction_len', 'instruction_word_count'])]['importance'].sum()
+            
+            print(f"\n📊 {model_name} Feature Type Summary:")
+            print(f"   Embedding features importance: {embedding_importance:.4f}")
+            print(f"   Pattern features importance: {pattern_importance:.4f}")
+            print(f"   Basic features importance: {basic_importance:.4f}")
 
-# Cell 7: Enhanced Query Testing
+# Actually call the function
+print("🚀 Starting feature importance analysis...")
+analyze_feature_importance(training_results)
+```
+
+# Cell 7: Enhanced Query Testing Interface
+```python
 def create_enhanced_query_tester(training_results, embeddings_model, pca, kmeans, label_encoders):
     """Create query tester with embedding features"""
     
@@ -569,8 +460,7 @@ def create_enhanced_query_tester(training_results, embeddings_model, pca, kmeans
         categorical_map = {
             'task_category': task_category,
             'intent': intent,
-            'knowledge': knowledge,
-            'question_type': 'explanation'  # Default
+            'knowledge': knowledge
         }
         
         for col, value in categorical_map.items():
@@ -601,16 +491,23 @@ def create_enhanced_query_tester(training_results, embeddings_model, pca, kmeans
     
     return predict_with_embeddings
 
-print("✅ Enhanced Token Predictor with Embeddings - Ready!")
-print("🚀 Run these functions in order:")
-print("   1. load_and_clean_data()")
-print("   2. generate_embeddings(df)")
-print("   3. process_embeddings(embeddings)")
-print("   4. create_enhanced_features(df, embeddings_pca, clusters)")
-print("   5. train_enhanced_models(features_df)")
-print("   6. analyze_feature_importance(results)")
-print("   7. create_enhanced_query_tester(...)")
-```
+# Actually create the query tester
+print("🚀 Creating enhanced query tester...")
+query_tester = create_enhanced_query_tester(training_results, embedding_model, pca_model, kmeans_model, label_encoders)
+
+# Test with sample queries
+print("\n🧪 Testing sample queries:")
+
+test_queries = [
+    "What is Python?",
+    "How do I sort a list in Python?", 
+    "Implement a binary search algorithm with error handling",
+    "Debug this error: AttributeError"
+]
+
+for query in test_queries:
+    print(f"\n" + "="*50)
+    prediction = query_tester(query)
 ```
 
 ## About Me
