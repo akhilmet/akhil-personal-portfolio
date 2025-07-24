@@ -3,7 +3,7 @@ Top 2-3 Results (This Year)
 
 Enhanced Token Prediction Pipeline: Developed comprehensive EDA analysis with Mistral tokenizer integration, improving estimation accuracy from chars/4 baseline by ~15% through real tokenization
 Multi-Model Comparison Framework: Built Random Forest and XGBoost models achieving 13.75 MAE (vs 56+ baseline), though accuracy remains insufficient for production routing decisions given limited dataset access during 4-week development cycle
-Hardware Integration: Mapped actual Capital One AI Sandbox configurations (3 models, real instance types) into latency prediction system for enterprise routing decisions
+Latency Prediction System: Created end-to-end latency predictor integrating real hardware parameters from Capital One's AI infrastructure, though current accuracy limitations require significant refinement before production deployment
 
 Top 2-3 Competency Strengths
 
