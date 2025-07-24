@@ -1,3 +1,30 @@
+```
+Top 2-3 Results (This Year)
+
+Enhanced Token Prediction Pipeline: Developed comprehensive EDA analysis with Mistral tokenizer integration, improving estimation accuracy from chars/4 baseline by ~15% through real tokenization
+Multi-Model Comparison Framework: Built Random Forest and XGBoost models achieving 13.75 MAE (vs 56+ baseline), though accuracy remains insufficient for production routing decisions given limited dataset access during 4-week development cycle
+Hardware Integration: Mapped actual Capital One AI Sandbox configurations (3 models, real instance types) into latency prediction system for enterprise routing decisions
+
+Top 2-3 Competency Strengths
+
+Problem Solving (above benchmark): Applied systematic feature engineering approach, extracting 25+ features from text analysis and implementing single-category classification logic to resolve data quality issues, consistently asking the right questions and diving deep before escalating
+Judgment (at directional benchmark): Made sound technical decisions balancing model complexity with available data constraints, maintaining realistic assessment of production readiness while pivoting quickly when approaches needed adjustment
+Results Focus (at directional benchmark): Delivered measurable improvements in token estimation accuracy while maintaining realistic assessment that current models need significant enhancement before production readiness
+Job Specific Skills (above benchmark): Demonstrated proficiency in ML pipeline development, from EDA through model training, with proper evaluation metrics and cross-model performance analysis
+
+Top 2-3 Competency Opportunities
+
+Influence: Opportunity to better advocate for additional training data collection and model refinement resources, as current accuracy levels require significant improvement for production deployment
+
+Evidence Supporting Rating
+
+Delivered comprehensive EDA with 8,500+ samples processed and 25+ engineered features extracted, achieving 75% improvement in MAE while honestly assessing production gaps
+Successfully integrated enterprise-specific constraints (Mistral tokenizer, hardware configurations) into technical solution with proper performance evaluation
+Associate engineer feedback: "Asks the right questions diving deep before reaching out and pivots quickly" when technical approaches need adjustment
+
+```
+
+
 ```python
 # Cell 1: Load and Clean Data
 import os
