@@ -37,16 +37,14 @@ def count_tokens_gpt(text):
     tokens = enc.encode(text)
     return len(tokens)
 
-# Cell 7: Create input_output_df
-input_output_df = combined_df[['instruction', 'response']].copy()
+# Cell 7: Calculate input and output tokens directly on combined_df
+combined_df['input_tokens'] = combined_df['instruction'].apply(count_tokens_gpt)
+combined_df['output_tokens'] = combined_df['response'].apply(count_tokens_gpt)
 
-# Cell 8: Calculate input tokens
-input_output_df['input_tokens'] = input_output_df['instruction'].apply(count_tokens_gpt)
+# Cell 8: Create working copy
+temp = combined_df.copy()
 
-# Cell 9: Calculate output tokens
-input_output_df['output_tokens'] = input_output_df['response'].apply(count_tokens_gpt)
-
-# Cell 10: Create token length categories
+# Cell 9: Create token length categories
 def categorize_tokens(token_count):
     if token_count < 50:
         return 0  # short
@@ -55,9 +53,9 @@ def categorize_tokens(token_count):
     else:
         return 2  # long
 
-input_output_df['token_category'] = input_output_df['output_tokens'].apply(categorize_tokens)
+temp['token_category'] = temp['output_tokens'].apply(categorize_tokens)
 
-# Cell 11: Import BERT and ML libraries
+# Cell 10: Import BERT and ML libraries
 import torch
 import torch.nn as nn
 from transformers import AutoTokenizer, BertModel, AutoConfig
@@ -66,7 +64,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error, mean_absolute_error, accuracy_score, classification_report
 import numpy as np
 
-# Cell 12: BERT Regression Model
+# Cell 11: BERT Regression Model
 class BertRegressionModel(nn.Module):
     def __init__(self, config, model_name, hidden_dim):
         super().__init__()
@@ -89,7 +87,7 @@ class BertRegressionModel(nn.Module):
         output = self.fc2(output).squeeze(-1)
         return output
 
-# Cell 13: BERT Classification Model
+# Cell 12: BERT Classification Model
 class BertClassificationModel(nn.Module):
     def __init__(self, config, model_name, hidden_dim, num_classes):
         super().__init__()
@@ -113,11 +111,11 @@ class BertClassificationModel(nn.Module):
         output = self.logsoftmax(self.fc2(output))
         return output
 
-# Cell 14: Dataset class for regression
+# Cell 13: Dataset class for regression
 class TokenRegressionDataset(Dataset):
     def __init__(self, texts, targets, tokenizer, max_length=512):
-        self.texts = texts.reset_index(drop=True)
-        self.targets = targets.reset_index(drop=True)
+        self.texts = list(texts)
+        self.targets = list(targets)
         self.tokenizer = tokenizer
         self.max_length = max_length
 
@@ -125,8 +123,8 @@ class TokenRegressionDataset(Dataset):
         return len(self.texts)
 
     def __getitem__(self, idx):
-        text = str(self.texts.iloc[idx])
-        target = self.targets.iloc[idx]
+        text = str(self.texts[idx])
+        target = self.targets[idx]
         
         encoding = self.tokenizer(
             text,
@@ -142,11 +140,11 @@ class TokenRegressionDataset(Dataset):
             'target': torch.tensor(target, dtype=torch.float)
         }
 
-# Cell 15: Dataset class for classification
+# Cell 14: Dataset class for classification
 class TokenClassificationDataset(Dataset):
     def __init__(self, texts, targets, tokenizer, max_length=512):
-        self.texts = texts.reset_index(drop=True)
-        self.targets = targets.reset_index(drop=True)
+        self.texts = list(texts)
+        self.targets = list(targets)
         self.tokenizer = tokenizer
         self.max_length = max_length
 
@@ -154,8 +152,8 @@ class TokenClassificationDataset(Dataset):
         return len(self.texts)
 
     def __getitem__(self, idx):
-        text = str(self.texts.iloc[idx])
-        target = self.targets.iloc[idx]
+        text = str(self.texts[idx])
+        target = self.targets[idx]
         
         encoding = self.tokenizer(
             text,
@@ -171,28 +169,28 @@ class TokenClassificationDataset(Dataset):
             'target': torch.tensor(target, dtype=torch.long)
         }
 
-# Cell 16: Setup BERT components
+# Cell 15: Setup BERT components
 bert_tokenizer = AutoTokenizer.from_pretrained('bert-base-uncased')
 config = AutoConfig.from_pretrained('bert-base-uncased')
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-# Cell 17: Prepare data splits
+# Cell 16: Prepare data splits
 X_train, X_test, y_train_reg, y_test_reg, y_train_cls, y_test_cls = train_test_split(
-    input_output_df['instruction'], 
-    input_output_df['output_tokens'], 
-    input_output_df['token_category'], 
+    temp['instruction'], 
+    temp['output_tokens'], 
+    temp['token_category'], 
     test_size=0.2, 
     random_state=42
 )
 
-# Cell 18: Create regression datasets and loaders
+# Cell 17: Create regression datasets and loaders
 train_reg_dataset = TokenRegressionDataset(X_train, y_train_reg, bert_tokenizer)
 test_reg_dataset = TokenRegressionDataset(X_test, y_test_reg, bert_tokenizer)
 
 train_reg_loader = DataLoader(train_reg_dataset, batch_size=16, shuffle=True)
 test_reg_loader = DataLoader(test_reg_dataset, batch_size=16, shuffle=False)
 
-# Cell 19: Train regression model
+# Cell 18: Train regression model
 reg_model = BertRegressionModel(config, 'bert-base-uncased', hidden_dim=128).to(device)
 reg_criterion = nn.MSELoss()
 reg_optimizer = torch.optim.AdamW(params=reg_model.parameters(), lr=1e-4)
@@ -218,7 +216,7 @@ for epoch in range(num_epochs):
     avg_loss = total_loss / len(train_reg_loader)
     print(f"Regression Epoch {epoch+1}/{num_epochs}, Average Loss: {avg_loss:.4f}")
 
-# Cell 20: Evaluate regression model
+# Cell 19: Evaluate regression model
 reg_model.eval()
 reg_predictions = []
 reg_actuals = []
@@ -245,14 +243,14 @@ print(f"Mean Squared Error (MSE): {reg_mse:.4f}")
 print(f"Root Mean Squared Error (RMSE): {np.sqrt(reg_mse):.4f}")
 print(f"Mean Absolute Error (MAE): {reg_mae:.4f}")
 
-# Cell 21: Create classification datasets and loaders
+# Cell 20: Create classification datasets and loaders
 train_cls_dataset = TokenClassificationDataset(X_train, y_train_cls, bert_tokenizer)
 test_cls_dataset = TokenClassificationDataset(X_test, y_test_cls, bert_tokenizer)
 
 train_cls_loader = DataLoader(train_cls_dataset, batch_size=16, shuffle=True)
 test_cls_loader = DataLoader(test_cls_dataset, batch_size=16, shuffle=False)
 
-# Cell 22: Train classification model
+# Cell 21: Train classification model
 cls_model = BertClassificationModel(config, 'bert-base-uncased', hidden_dim=128, num_classes=3).to(device)
 cls_criterion = nn.NLLLoss()
 cls_optimizer = torch.optim.AdamW(params=cls_model.parameters(), lr=1e-4)
@@ -277,7 +275,7 @@ for epoch in range(num_epochs):
     avg_loss = total_loss / len(train_cls_loader)
     print(f"Classification Epoch {epoch+1}/{num_epochs}, Average Loss: {avg_loss:.4f}")
 
-# Cell 23: Evaluate classification model
+# Cell 22: Evaluate classification model
 cls_model.eval()
 cls_predictions = []
 cls_actuals = []
@@ -303,7 +301,7 @@ print(f"Accuracy: {cls_accuracy:.4f}")
 print(f"Classification Report:")
 print(classification_report(cls_actuals, cls_predictions, target_names=['Short', 'Medium', 'Long']))
 
-# Cell 24: Test both models on sample queries
+# Cell 23: Test both models on sample queries
 test_queries = [
     "What is machine learning?",
     "Implement a neural network from scratch using Python and explain each component in detail",
