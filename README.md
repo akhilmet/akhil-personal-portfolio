@@ -38,180 +38,151 @@ def count_tokens_gpt(text):
     return len(tokens)
 
 # Cell 7: Create input_output_df
-input_output_df = combined_df[['instruction', 'response']].copy()
+input_output_df = combined_df[['instruction', 'responses']].copy()
 
 # Cell 8: Calculate input tokens
 input_output_df['input_tokens'] = input_output_df['instruction'].apply(count_tokens_gpt)
 
 # Cell 9: Calculate output tokens
-input_output_df['output_tokens'] = input_output_df['response'].apply(count_tokens_gpt)
+input_output_df['output_tokens'] = input_output_df['responses'].apply(count_tokens_gpt)
 
 # Cell 10: Create working copy
 temp = input_output_df.copy()
 
-# Cell 11: Create token length categories
+# Cell 11: Analyze distribution and create balanced token length categories
+print("Token distribution analysis:")
+print(temp['output_tokens'].describe(percentiles=[.33, .66, .75, .90, .95]))
+
 def categorize_tokens(token_count):
-    if token_count < 50:
+    if token_count < 150:
         return 0  # short
-    elif token_count < 300:
+    elif token_count < 450:
         return 1  # medium
     else:
         return 2  # long
 
 temp['token_category'] = temp['output_tokens'].apply(categorize_tokens)
+print("\nCategory distribution:")
+print(temp['token_category'].value_counts().sort_index())
 
-# Cell 12: Import BERT and ML libraries
+# Cell 12: Import sentence transformer and ML libraries
+from sentence_transformers import SentenceTransformer
 import torch
 import torch.nn as nn
-from transformers import AutoTokenizer, BertModel, AutoConfig
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error, mean_absolute_error, accuracy_score, classification_report
 import numpy as np
 
-# Cell 13: BERT Regression Model
-class BertRegressionModel(nn.Module):
-    def __init__(self, config, model_name, hidden_dim):
-        super().__init__()
-        self.config = config
-        self.bert = BertModel.from_pretrained(model_name)
-        
-        for param in self.bert.parameters():
-            param.requires_grad = False
-            
-        self.cls = nn.Linear(config.hidden_size, hidden_dim)
-        self.relu = nn.ReLU()
-        self.fc1 = nn.Linear(hidden_dim, hidden_dim)
-        self.fc2 = nn.Linear(hidden_dim, 1)
+# Cell 13: Generate sentence embeddings
+model = SentenceTransformer('all-MiniLM-L6-v2')
+print("Generating embeddings...")
+embeddings = model.encode(temp['instruction'].tolist(), show_progress_bar=True)
+print(f"Generated embeddings shape: {embeddings.shape}")
 
-    def forward(self, input_ids, attention_mask):
-        outputs = self.bert(input_ids=input_ids, attention_mask=attention_mask)
-        logits = outputs.last_hidden_state[:,0,:]
-        output = self.relu(self.cls(logits))
-        output = self.relu(self.fc1(output))
-        output = self.fc2(output).squeeze(-1)
-        return output
+# Cell 14: Add embeddings to dataframe
+num_new_columns = len(embeddings[0])
+for i in range(num_new_columns):
+    temp[f'embed_{i}'] = embeddings[:, i]
 
-# Cell 14: BERT Classification Model
-class BertClassificationModel(nn.Module):
-    def __init__(self, config, model_name, hidden_dim, num_classes):
+# Cell 15: Neural Network Regression Model
+class EmbeddingRegressionModel(nn.Module):
+    def __init__(self, input_dim, hidden_dim):
         super().__init__()
-        self.config = config
-        self.bert = BertModel.from_pretrained(model_name)
-        
-        for param in self.bert.parameters():
-            param.requires_grad = False
-            
-        self.cls = nn.Linear(config.hidden_size, hidden_dim)
+        self.fc1 = nn.Linear(input_dim, hidden_dim)
+        self.fc2 = nn.Linear(hidden_dim, hidden_dim // 2)
+        self.fc3 = nn.Linear(hidden_dim // 2, hidden_dim // 4)
+        self.fc4 = nn.Linear(hidden_dim // 4, 1)
         self.relu = nn.ReLU()
-        self.fc1 = nn.Linear(hidden_dim, hidden_dim)
-        self.fc2 = nn.Linear(hidden_dim, num_classes)
+        self.dropout = nn.Dropout(0.2)
+
+    def forward(self, x):
+        x = self.relu(self.fc1(x))
+        x = self.dropout(x)
+        x = self.relu(self.fc2(x))
+        x = self.dropout(x)
+        x = self.relu(self.fc3(x))
+        x = self.fc4(x)
+        return x.squeeze(-1)
+
+# Cell 16: Neural Network Classification Model
+class EmbeddingClassificationModel(nn.Module):
+    def __init__(self, input_dim, hidden_dim, num_classes):
+        super().__init__()
+        self.fc1 = nn.Linear(input_dim, hidden_dim)
+        self.fc2 = nn.Linear(hidden_dim, hidden_dim // 2)
+        self.fc3 = nn.Linear(hidden_dim // 2, hidden_dim // 4)
+        self.fc4 = nn.Linear(hidden_dim // 4, num_classes)
+        self.relu = nn.ReLU()
+        self.dropout = nn.Dropout(0.2)
         self.logsoftmax = nn.LogSoftmax(dim=-1)
 
-    def forward(self, input_ids, attention_mask):
-        outputs = self.bert(input_ids=input_ids, attention_mask=attention_mask)
-        logits = outputs.last_hidden_state[:,0,:]
-        output = self.relu(self.cls(logits))
-        output = self.relu(self.fc1(output))
-        output = self.logsoftmax(self.fc2(output))
-        return output
+    def forward(self, x):
+        x = self.relu(self.fc1(x))
+        x = self.dropout(x)
+        x = self.relu(self.fc2(x))
+        x = self.dropout(x)
+        x = self.relu(self.fc3(x))
+        x = self.logsoftmax(self.fc4(x))
+        return x
 
-# Cell 15: Dataset class for regression
-class TokenRegressionDataset(Dataset):
-    def __init__(self, texts, targets, tokenizer, max_length=512):
-        self.texts = list(texts)
-        self.targets = list(targets)
-        self.tokenizer = tokenizer
-        self.max_length = max_length
-
-    def __len__(self):
-        return len(self.texts)
-
-    def __getitem__(self, idx):
-        text = str(self.texts[idx])
-        target = self.targets[idx]
-        
-        encoding = self.tokenizer(
-            text,
-            truncation=True,
-            padding='max_length',
-            max_length=self.max_length,
-            return_tensors='pt'
-        )
-        
-        return {
-            'input_ids': encoding['input_ids'].flatten(),
-            'attention_mask': encoding['attention_mask'].flatten(),
-            'target': torch.tensor(target, dtype=torch.float)
-        }
-
-# Cell 16: Dataset class for classification
-class TokenClassificationDataset(Dataset):
-    def __init__(self, texts, targets, tokenizer, max_length=512):
-        self.texts = list(texts)
-        self.targets = list(targets)
-        self.tokenizer = tokenizer
-        self.max_length = max_length
+# Cell 17: Dataset class for embeddings
+class EmbeddingDataset(Dataset):
+    def __init__(self, features, targets, task_type='regression'):
+        self.features = torch.FloatTensor(features)
+        if task_type == 'regression':
+            self.targets = torch.FloatTensor(targets)
+        else:
+            self.targets = torch.LongTensor(targets)
 
     def __len__(self):
-        return len(self.texts)
+        return len(self.features)
 
     def __getitem__(self, idx):
-        text = str(self.texts[idx])
-        target = self.targets[idx]
-        
-        encoding = self.tokenizer(
-            text,
-            truncation=True,
-            padding='max_length',
-            max_length=self.max_length,
-            return_tensors='pt'
-        )
-        
-        return {
-            'input_ids': encoding['input_ids'].flatten(),
-            'attention_mask': encoding['attention_mask'].flatten(),
-            'target': torch.tensor(target, dtype=torch.long)
-        }
+        return self.features[idx], self.targets[idx]
 
-# Cell 17: Setup BERT components
-bert_tokenizer = AutoTokenizer.from_pretrained('bert-base-uncased')
-config = AutoConfig.from_pretrained('bert-base-uncased')
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+# Cell 18: Prepare features and data splits
+feature_columns = ['input_tokens'] + [f'embed_{i}' for i in range(384)]
+X = temp[feature_columns].values
+y_reg = temp['output_tokens'].values
+y_cls = temp['token_category'].values
 
-# Cell 18: Prepare data splits
 X_train, X_test, y_train_reg, y_test_reg, y_train_cls, y_test_cls = train_test_split(
-    temp['instruction'], 
-    temp['output_tokens'], 
-    temp['token_category'], 
-    test_size=0.2, 
-    random_state=42
+    X, y_reg, y_cls, test_size=0.2, random_state=42
 )
 
-# Cell 19: Create regression datasets and loaders
-train_reg_dataset = TokenRegressionDataset(X_train, y_train_reg, bert_tokenizer)
-test_reg_dataset = TokenRegressionDataset(X_test, y_test_reg, bert_tokenizer)
+# Cell 19: Create datasets and loaders
+train_reg_dataset = EmbeddingDataset(X_train, y_train_reg, 'regression')
+test_reg_dataset = EmbeddingDataset(X_test, y_test_reg, 'regression')
+train_cls_dataset = EmbeddingDataset(X_train, y_train_cls, 'classification')
+test_cls_dataset = EmbeddingDataset(X_test, y_test_cls, 'classification')
 
-train_reg_loader = DataLoader(train_reg_dataset, batch_size=16, shuffle=True)
-test_reg_loader = DataLoader(test_reg_dataset, batch_size=16, shuffle=False)
+train_reg_loader = DataLoader(train_reg_dataset, batch_size=32, shuffle=True)
+test_reg_loader = DataLoader(test_reg_dataset, batch_size=32, shuffle=False)
+train_cls_loader = DataLoader(train_cls_dataset, batch_size=32, shuffle=True)
+test_cls_loader = DataLoader(test_cls_dataset, batch_size=32, shuffle=False)
 
-# Cell 20: Train regression model
-reg_model = BertRegressionModel(config, 'bert-base-uncased', hidden_dim=128).to(device)
+# Cell 20: Setup device and models
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+input_dim = len(feature_columns)
+
+reg_model = EmbeddingRegressionModel(input_dim, 256).to(device)
+cls_model = EmbeddingClassificationModel(input_dim, 256, 3).to(device)
+
+# Cell 21: Train regression model
 reg_criterion = nn.MSELoss()
-reg_optimizer = torch.optim.AdamW(params=reg_model.parameters(), lr=1e-4)
+reg_optimizer = torch.optim.Adam(reg_model.parameters(), lr=0.001)
 
-num_epochs = 3
+num_epochs = 10
 reg_model.train()
 
 for epoch in range(num_epochs):
     total_loss = 0
-    for batch in train_reg_loader:
-        input_ids = batch['input_ids'].to(device)
-        attention_mask = batch['attention_mask'].to(device)
-        targets = batch['target'].to(device)
+    for features, targets in train_reg_loader:
+        features, targets = features.to(device), targets.to(device)
         
         reg_optimizer.zero_grad()
-        outputs = reg_model(input_ids=input_ids, attention_mask=attention_mask)
+        outputs = reg_model(features)
         loss = reg_criterion(outputs, targets)
         loss.backward()
         reg_optimizer.step()
@@ -221,18 +192,15 @@ for epoch in range(num_epochs):
     avg_loss = total_loss / len(train_reg_loader)
     print(f"Regression Epoch {epoch+1}/{num_epochs}, Average Loss: {avg_loss:.4f}")
 
-# Cell 21: Evaluate regression model
+# Cell 22: Evaluate regression model
 reg_model.eval()
 reg_predictions = []
 reg_actuals = []
 
 with torch.no_grad():
-    for batch in test_reg_loader:
-        input_ids = batch['input_ids'].to(device)
-        attention_mask = batch['attention_mask'].to(device)
-        targets = batch['target'].to(device)
-        
-        outputs = reg_model(input_ids=input_ids, attention_mask=attention_mask)
+    for features, targets in test_reg_loader:
+        features, targets = features.to(device), targets.to(device)
+        outputs = reg_model(features)
         
         reg_predictions.extend(outputs.cpu().numpy())
         reg_actuals.extend(targets.cpu().numpy())
@@ -243,34 +211,24 @@ reg_actuals = np.array(reg_actuals)
 reg_mse = mean_squared_error(reg_actuals, reg_predictions)
 reg_mae = mean_absolute_error(reg_actuals, reg_predictions)
 
-print(f"BERT Regression Model Performance:")
+print(f"Embedding Regression Model Performance:")
 print(f"Mean Squared Error (MSE): {reg_mse:.4f}")
 print(f"Root Mean Squared Error (RMSE): {np.sqrt(reg_mse):.4f}")
 print(f"Mean Absolute Error (MAE): {reg_mae:.4f}")
 
-# Cell 22: Create classification datasets and loaders
-train_cls_dataset = TokenClassificationDataset(X_train, y_train_cls, bert_tokenizer)
-test_cls_dataset = TokenClassificationDataset(X_test, y_test_cls, bert_tokenizer)
-
-train_cls_loader = DataLoader(train_cls_dataset, batch_size=16, shuffle=True)
-test_cls_loader = DataLoader(test_cls_dataset, batch_size=16, shuffle=False)
-
 # Cell 23: Train classification model
-cls_model = BertClassificationModel(config, 'bert-base-uncased', hidden_dim=128, num_classes=3).to(device)
 cls_criterion = nn.NLLLoss()
-cls_optimizer = torch.optim.AdamW(params=cls_model.parameters(), lr=1e-4)
+cls_optimizer = torch.optim.Adam(cls_model.parameters(), lr=0.001)
 
 cls_model.train()
 
 for epoch in range(num_epochs):
     total_loss = 0
-    for batch in train_cls_loader:
-        input_ids = batch['input_ids'].to(device)
-        attention_mask = batch['attention_mask'].to(device)
-        targets = batch['target'].to(device)
+    for features, targets in train_cls_loader:
+        features, targets = features.to(device), targets.to(device)
         
         cls_optimizer.zero_grad()
-        outputs = cls_model(input_ids=input_ids, attention_mask=attention_mask)
+        outputs = cls_model(features)
         loss = cls_criterion(outputs, targets)
         loss.backward()
         cls_optimizer.step()
@@ -286,12 +244,9 @@ cls_predictions = []
 cls_actuals = []
 
 with torch.no_grad():
-    for batch in test_cls_loader:
-        input_ids = batch['input_ids'].to(device)
-        attention_mask = batch['attention_mask'].to(device)
-        targets = batch['target'].to(device)
-        
-        outputs = cls_model(input_ids=input_ids, attention_mask=attention_mask)
+    for features, targets in test_cls_loader:
+        features, targets = features.to(device), targets.to(device)
+        outputs = cls_model(features)
         predictions = torch.argmax(outputs, dim=-1)
         
         cls_predictions.extend(predictions.cpu().numpy())
@@ -301,7 +256,7 @@ cls_predictions = np.array(cls_predictions)
 cls_actuals = np.array(cls_actuals)
 
 cls_accuracy = accuracy_score(cls_actuals, cls_predictions)
-print(f"BERT Classification Model Performance:")
+print(f"Embedding Classification Model Performance:")
 print(f"Accuracy: {cls_accuracy:.4f}")
 print(f"Classification Report:")
 print(classification_report(cls_actuals, cls_predictions, target_names=['Short', 'Medium', 'Long']))
@@ -314,24 +269,18 @@ test_queries = [
     "Explain the differences between supervised and unsupervised learning, provide examples, and discuss when to use each approach"
 ]
 
-def predict_tokens(query, reg_model, cls_model, tokenizer, device):
-    encoding = tokenizer(
-        query,
-        truncation=True,
-        padding='max_length',
-        max_length=512,
-        return_tensors='pt'
-    )
-    
-    input_ids = encoding['input_ids'].to(device)
-    attention_mask = encoding['attention_mask'].to(device)
+def predict_tokens_embedding(query, reg_model, cls_model, sentence_model, device):
+    query_embedding = sentence_model.encode([query])
+    input_tokens = len(enc.encode(query))
+    features = np.concatenate([[input_tokens], query_embedding[0]])
+    features_tensor = torch.FloatTensor(features).unsqueeze(0).to(device)
     
     with torch.no_grad():
         reg_model.eval()
         cls_model.eval()
         
-        reg_output = reg_model(input_ids=input_ids, attention_mask=attention_mask)
-        cls_output = cls_model(input_ids=input_ids, attention_mask=attention_mask)
+        reg_output = reg_model(features_tensor)
+        cls_output = cls_model(features_tensor)
         cls_pred = torch.argmax(cls_output, dim=-1)
         
         categories = ['Short', 'Medium', 'Long']
@@ -340,7 +289,7 @@ def predict_tokens(query, reg_model, cls_model, tokenizer, device):
 
 print("Test Predictions:")
 for query in test_queries:
-    predicted_tokens, predicted_category = predict_tokens(query, reg_model, cls_model, bert_tokenizer, device)
+    predicted_tokens, predicted_category = predict_tokens_embedding(query, reg_model, cls_model, model, device)
     print(f"Query: {query[:50]}...")
     print(f"Predicted Tokens: {predicted_tokens:.1f}")
     print(f"Predicted Category: {predicted_category}")
