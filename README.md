@@ -20,7 +20,27 @@ combined_df = pd.concat(list_of_dataframes, ignore_index=True)
 combined_df = combined_df.dropna()
 combined_df.head()
 
-# Cell 5: Setup tokenizers
+# Cell 5: Handle responses column - extract first response from list
+combined_df['responses'] = combined_df['responses'].apply(lambda arr: arr[0])
+
+# Cell 6: Import sentence transformer
+from sentence_transformers import SentenceTransformer
+model = SentenceTransformer('all-MiniLM-L6-v2')
+
+# Cell 7: Define embedding function
+def get_embedding(input):
+    return model.encode(input)
+
+# Cell 8: Create input_output_df
+input_output_df = combined_df[['instruction', 'responses']].copy()
+
+# Cell 9: Generate embeddings
+input_output_df['embeddings'] = input_output_df['responses'].apply(get_embedding)
+
+# Cell 10: Preview data
+input_output_df.head()
+
+# Cell 11: Setup tokenizers
 from mistral_common.tokens.tokenizers.mistral import MistralTokenizer
 from mistral_common.protocol.instruct.messages import UserMessage
 from mistral_common.protocol.instruct.request import ChatCompletionRequest
@@ -30,26 +50,28 @@ def count_tokens(text):
     enc = tokenizer.encode_chat_completion(req)
     return len(enc.tokens)
 
-# Cell 6: Alternative tokenizer
+# Cell 12: Alternative tokenizer
 import tiktoken
 enc = tiktoken.get_encoding("gpt2")
 def count_tokens_gpt(text):
     tokens = enc.encode(text)
     return len(tokens)
 
-# Cell 7: Create input_output_df
-input_output_df = combined_df[['instruction', 'responses']].copy()
-
-# Cell 8: Calculate input tokens
+# Cell 13: Calculate input tokens
 input_output_df['input_tokens'] = input_output_df['instruction'].apply(count_tokens_gpt)
 
-# Cell 9: Calculate output tokens
+# Cell 14: Calculate output tokens
 input_output_df['output_tokens'] = input_output_df['responses'].apply(count_tokens_gpt)
 
-# Cell 10: Create working copy
+# Cell 15: Create working copy
 temp = input_output_df.copy()
 
-# Cell 11: Analyze distribution and create balanced token length categories
+# Cell 16: Add embedding dimensions to dataframe
+num_new_columns = len(temp['embeddings'].iloc[0])
+for i in range(num_new_columns):
+    temp[f'embed_{i}'] = temp['embeddings'].apply(lambda arr: arr[i])
+
+# Cell 17: Analyze distribution and create balanced token length categories
 print("Token distribution analysis:")
 print(temp['output_tokens'].describe(percentiles=[.33, .66, .75, .90, .95]))
 
@@ -65,27 +87,14 @@ temp['token_category'] = temp['output_tokens'].apply(categorize_tokens)
 print("\nCategory distribution:")
 print(temp['token_category'].value_counts().sort_index())
 
-# Cell 12: Import sentence transformer and ML libraries
-from sentence_transformers import SentenceTransformer
+# Cell 18: Import ML libraries
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error, mean_absolute_error, accuracy_score, classification_report
-import numpy as np
 
-# Cell 13: Generate sentence embeddings
-model = SentenceTransformer('all-MiniLM-L6-v2')
-print("Generating embeddings...")
-embeddings = model.encode(temp['instruction'].tolist(), show_progress_bar=True)
-print(f"Generated embeddings shape: {embeddings.shape}")
-
-# Cell 14: Add embeddings to dataframe
-num_new_columns = len(embeddings[0])
-for i in range(num_new_columns):
-    temp[f'embed_{i}'] = embeddings[:, i]
-
-# Cell 15: Neural Network Regression Model
+# Cell 19: Neural Network Regression Model
 class EmbeddingRegressionModel(nn.Module):
     def __init__(self, input_dim, hidden_dim):
         super().__init__()
@@ -105,7 +114,7 @@ class EmbeddingRegressionModel(nn.Module):
         x = self.fc4(x)
         return x.squeeze(-1)
 
-# Cell 16: Neural Network Classification Model
+# Cell 20: Neural Network Classification Model
 class EmbeddingClassificationModel(nn.Module):
     def __init__(self, input_dim, hidden_dim, num_classes):
         super().__init__()
@@ -126,7 +135,7 @@ class EmbeddingClassificationModel(nn.Module):
         x = self.logsoftmax(self.fc4(x))
         return x
 
-# Cell 17: Dataset class for embeddings
+# Cell 21: Dataset class for embeddings
 class EmbeddingDataset(Dataset):
     def __init__(self, features, targets, task_type='regression'):
         self.features = torch.FloatTensor(features)
@@ -141,7 +150,7 @@ class EmbeddingDataset(Dataset):
     def __getitem__(self, idx):
         return self.features[idx], self.targets[idx]
 
-# Cell 18: Prepare features and data splits
+# Cell 22: Prepare features and data splits
 feature_columns = ['input_tokens'] + [f'embed_{i}' for i in range(384)]
 X = temp[feature_columns].values
 y_reg = temp['output_tokens'].values
@@ -151,7 +160,7 @@ X_train, X_test, y_train_reg, y_test_reg, y_train_cls, y_test_cls = train_test_s
     X, y_reg, y_cls, test_size=0.2, random_state=42
 )
 
-# Cell 19: Create datasets and loaders
+# Cell 23: Create datasets and loaders
 train_reg_dataset = EmbeddingDataset(X_train, y_train_reg, 'regression')
 test_reg_dataset = EmbeddingDataset(X_test, y_test_reg, 'regression')
 train_cls_dataset = EmbeddingDataset(X_train, y_train_cls, 'classification')
@@ -162,14 +171,14 @@ test_reg_loader = DataLoader(test_reg_dataset, batch_size=32, shuffle=False)
 train_cls_loader = DataLoader(train_cls_dataset, batch_size=32, shuffle=True)
 test_cls_loader = DataLoader(test_cls_dataset, batch_size=32, shuffle=False)
 
-# Cell 20: Setup device and models
+# Cell 24: Setup device and models
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 input_dim = len(feature_columns)
 
 reg_model = EmbeddingRegressionModel(input_dim, 256).to(device)
 cls_model = EmbeddingClassificationModel(input_dim, 256, 3).to(device)
 
-# Cell 21: Train regression model
+# Cell 25: Train regression model
 reg_criterion = nn.MSELoss()
 reg_optimizer = torch.optim.Adam(reg_model.parameters(), lr=0.001)
 
@@ -192,7 +201,7 @@ for epoch in range(num_epochs):
     avg_loss = total_loss / len(train_reg_loader)
     print(f"Regression Epoch {epoch+1}/{num_epochs}, Average Loss: {avg_loss:.4f}")
 
-# Cell 22: Evaluate regression model
+# Cell 26: Evaluate regression model
 reg_model.eval()
 reg_predictions = []
 reg_actuals = []
@@ -216,7 +225,7 @@ print(f"Mean Squared Error (MSE): {reg_mse:.4f}")
 print(f"Root Mean Squared Error (RMSE): {np.sqrt(reg_mse):.4f}")
 print(f"Mean Absolute Error (MAE): {reg_mae:.4f}")
 
-# Cell 23: Train classification model
+# Cell 27: Train classification model
 cls_criterion = nn.NLLLoss()
 cls_optimizer = torch.optim.Adam(cls_model.parameters(), lr=0.001)
 
@@ -238,7 +247,7 @@ for epoch in range(num_epochs):
     avg_loss = total_loss / len(train_cls_loader)
     print(f"Classification Epoch {epoch+1}/{num_epochs}, Average Loss: {avg_loss:.4f}")
 
-# Cell 24: Evaluate classification model
+# Cell 28: Evaluate classification model
 cls_model.eval()
 cls_predictions = []
 cls_actuals = []
@@ -261,7 +270,7 @@ print(f"Accuracy: {cls_accuracy:.4f}")
 print(f"Classification Report:")
 print(classification_report(cls_actuals, cls_predictions, target_names=['Short', 'Medium', 'Long']))
 
-# Cell 25: Test both models on sample queries
+# Cell 29: Test both models on sample queries
 test_queries = [
     "What is machine learning?",
     "Implement a neural network from scratch using Python and explain each component in detail",
