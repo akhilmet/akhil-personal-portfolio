@@ -1,4 +1,43 @@
 ```
+# test_basic_functions.py
+from token_estimator_feature_collection import TokenEstimatorFeatureCollection
+
+def test_basic_functions():
+    # Initialize the class
+    feature_collector = TokenEstimatorFeatureCollection()
+    
+    # Test query
+    test_query = "What is machine learning and how does it work?"
+    
+    print("Testing Basic Token Estimator Functions")
+    print("=" * 50)
+    print(f"Query: '{test_query}'")
+    print("-" * 50)
+    
+    try:
+        # Test 1: Input tokens
+        print("Testing get_token_length()...")
+        input_tokens = feature_collector.get_token_length(test_query)
+        print(f"✅ Input tokens: {input_tokens}")
+        
+        # Test 2: Sentence embeddings  
+        print("\nTesting get_query_embedding()...")
+        embedding = feature_collector.get_query_embedding(test_query)
+        print(f"✅ Embedding shape: {embedding.shape}")
+        print(f"✅ Sample values: {embedding[:5]}")
+        
+        print(f"\n🎉 Both functions work! Ready for Chris's MLP integration.")
+        
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        import traceback
+        traceback.print_exc()
+
+if __name__ == "__main__":
+    test_basic_functions()
+
+
+```
 Title: feat|test|chore|bug|doc: Add sentence transformer embeddings to token predictor
 Description
 Context
