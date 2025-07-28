@@ -1,83 +1,13 @@
 ```
-# Cell 1: Save the sentence transformer model
-import os
-from sentence_transformers import SentenceTransformer
+Title: feat|test|chore|bug|doc: Add sentence transformer embeddings to token predictor
+Description
+Context
+Updated token predictor to use MiniLM sentence embeddings for better semantic understanding of queries, replacing basic feature engineering approach.
+Updates
 
-model_save_path = "./model_artifacts/sentence_transformer"
-os.makedirs(model_save_path, exist_ok=True)
-model.save(model_save_path)
-
-# Cell 2: Save the trained MLP models
-torch.save(reg_model.state_dict(), "./model_artifacts/regression_model.pth")
-torch.save(cls_model.state_dict(), "./model_artifacts/classification_model.pth")
-
-# Cell 3: Download model to local machine
-import shutil
-import os
-
-shutil.make_archive('sentence_transformer_model', 'zip', './model_artifacts/')
-print("Model zipped as 'sentence_transformer_model.zip'")
-print("Download it from the Jupyter file browser")
-
-# Cell 4: Complete TokenEstimatorFeatureCollection class
-import re
-import string
-import pandas as pd
-import numpy as np
-from sklearn.preprocessing import LabelEncoder
-from mistral_common.tokens.tokenizers.mistral import MistralTokenizer
-from mistral_common.protocol.instruct.messages import UserMessage
-from mistral_common.protocol.instruct.request import ChatCompletionRequest
-from sentence_transformers import SentenceTransformer
-
-tokenizer = MistralTokenizer.v3()
-
-class TokenEstimatorFeatureCollection:
-    """
-    Feature collection class for token predictor.
-    Can be instantiated per request or used as singleton.
-    """
-    
-    def get_token_length(self, text):
-        """
-        Calculates the token length of the input text using Mistral tokenizer.
-        
-        Args:
-            text (str): The input text.
-            
-        Returns:
-            int: The number of tokens.
-        """
-        try:
-            req = ChatCompletionRequest(messages=[UserMessage(content=text)])
-            enc = tokenizer.encode_chat_completion(req)
-            return len(enc.tokens)
-        except Exception as e:
-            return max(1, len(text) // 4)
-    
-    def get_query_embedding(self, query_text):
-        """
-        Returns the embeddings for a given query text as a numpy array.
-        
-        Args:
-            query_text (str): The input query text.
-            
-        Returns:
-            numpy.ndarray: The embedding vector as an array.
-        """
-        import os
-        
-        # Use Kubeflow volume path like Chris showed for Magpie dataset
-        base_dir = os.path.join(
-            os.getcwd(),
-            "query-routing-systems-datasets", 
-            "model_artifacts"
-        )
-        model_path = os.path.join(base_dir, "sentence_transformer")
-        
-        model = SentenceTransformer(model_path)
-        embedding = model.encode([query_text])
-        return embedding[0]
+Added get_query_embedding() method to extract 384-dimensional sentence embeddings
+Updated get_token_length() to use Mistral tokenizer for consistency
+Configured model path to use Kubeflow volume storage (query-routing-systems-datasets/model_artifacts/)
 ```
 
 ## About Me
