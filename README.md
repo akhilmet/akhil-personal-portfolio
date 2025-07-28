@@ -1,4 +1,26 @@
 ```
+    def get_query_embedding(self, query_text):
+        """
+        Returns the embeddings for a given query text as a numpy array.
+        
+        Args:
+            query_text (str): The input query text.
+            
+        Returns:
+            numpy.ndarray: The embedding vector as an array.
+        """
+        import os
+        
+        # For local testing - use relative path to your repo
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        model_path = os.path.join(current_dir, "sentence_transformer")
+        
+        model = SentenceTransformer(model_path)
+        embedding = model.encode([query_text])
+        return embedding[0]
+```
+
+```
 # test_basic_functions.py
 from token_estimator_feature_collection import TokenEstimatorFeatureCollection
 
