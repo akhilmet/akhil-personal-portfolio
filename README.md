@@ -65,7 +65,16 @@ class TokenEstimatorFeatureCollection:
         Returns:
             numpy.ndarray: The embedding vector as an array.
         """
-        model_path = "./model_artifacts/sentence_transformer"
+        import os
+        
+        # Use Kubeflow volume path like Chris showed for Magpie dataset
+        base_dir = os.path.join(
+            os.getcwd(),
+            "query-routing-systems-datasets", 
+            "model_artifacts"
+        )
+        model_path = os.path.join(base_dir, "sentence_transformer")
+        
         model = SentenceTransformer(model_path)
         embedding = model.encode([query_text])
         return embedding[0]
