@@ -1,9 +1,10 @@
 ```
-# Cell 1: Quick test - direct functions with Kubeflow path
+# Cell: Corrected test with proper os.getcwd() path
 from sentence_transformers import SentenceTransformer
 from mistral_common.tokens.tokenizers.mistral import MistralTokenizer
 from mistral_common.protocol.instruct.messages import UserMessage
 from mistral_common.protocol.instruct.request import ChatCompletionRequest
+import os
 
 # Initialize tokenizer
 tokenizer = MistralTokenizer.v3()
@@ -17,13 +18,16 @@ def get_tokens(text):
         return max(1, len(text) // 4)
 
 def get_embeddings(text):
-    model_path = "/query-routing-systems-datasets/model_artifacts/sentence_transformer"
+    # Use os.getcwd() to build path dynamically
+    base_path = os.getcwd()
+    model_path = os.path.join(base_path, "query-routing-systems-datasets", "model_artifacts", "sentence_transformer")
     model = SentenceTransformer(model_path)
     embedding = model.encode([text])
     return embedding[0]
 
 # Test both functions
 test_query = "What is machine learning?"
+print(f"Current working directory: {os.getcwd()}")
 print(f"Query: '{test_query}'")
 print(f"Input tokens: {get_tokens(test_query)}")
 embedding = get_embeddings(test_query)
