@@ -37,6 +37,43 @@ print(f"First 5 values: {embedding[:5]}")
 ```
 
 ```
+# Complete TokenEstimatorFeatureCollection with Kubeflow path and review fixes
+import re
+import string
+import pandas as pd
+import numpy as np
+from sklearn.preprocessing import LabelEncoder
+from mistral_common.tokens.tokenizers.mistral import MistralTokenizer
+from mistral_common.protocol.instruct.messages import UserMessage
+from mistral_common.protocol.instruct.request import ChatCompletionRequest
+from sentence_transformers import SentenceTransformer
+import os
+
+tokenizer = MistralTokenizer.v3()
+
+class TokenEstimatorFeatureCollection:
+    """
+    Feature collection class for token predictor.
+    Can be instantiated per request or used as singleton.
+    """
+    
+    def get_token_length(self, text):
+        """
+        Calculates the token length of the input text using Mistral tokenizer.
+        
+        Args:
+            text (str): The input text.
+            
+        Returns:
+            int: The number of tokens.
+        """
+        try:
+            req = ChatCompletionRequest(messages=[UserMessage(content=text)])
+            enc = tokenizer.encode_chat_completion(req)
+            return len(enc.tokens)
+        except Exception as e:
+            return max(1, len(text) // 4)
+    
     def get_query_embedding(self, query_text):
         """
         Returns the embeddings for a given query text as a numpy array.
@@ -47,15 +84,13 @@ print(f"First 5 values: {embedding[:5]}")
         Returns:
             numpy.ndarray: The embedding vector as an array.
         """
-        import os
-        
-        # For local testing - use relative path to your repo
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        model_path = os.path.join(current_dir, "sentence_transformer")
+        # Use os.getcwd() to build path dynamically like the test that worked
+        base_path = os.getcwd()
+        model_path = os.path.join(base_path, "query-routing-systems-datasets", "model_artifacts", "sentence_transformer")
         
         model = SentenceTransformer(model_path)
-        embedding = model.encode([query_text])
-        return embedding[0]
+        embedding = model.encode(query_text)
+        return embedding
 ```
 
 ```
