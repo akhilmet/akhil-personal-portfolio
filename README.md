@@ -1,4 +1,4 @@
-```
+
 # Tech Incubator Final Presentation: User Query-Based Routing System
 
 ## Agenda / Table of Contents
@@ -72,7 +72,7 @@ We completed comprehensive system integration testing, performance validation, a
 - **Advanced Decision Engines**: Implement contextual bandits and TOPSIS methods for adaptive learning and more sophisticated multi-criteria optimization
 - **Performance Optimization**: Add caching mechanisms and similarity search to reduce redundant computations and improve response times
 - **Expanded Model Support**: Extend routing capabilities to support additional LLM providers and model variants for increased flexibility and cost optimization opportunities
-```
+
 ## About Me
 
 Hello! I'm Akhil Metukuru, passionate about leveraging technology to solve real-world problems and create impactful solutions. When I'm not coding or working on new projects, you might find me exploring new places, reading, or spending time with family and friends.
