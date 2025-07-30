@@ -1,149 +1,87 @@
 ```
-# Cell: Corrected test with proper os.getcwd() path
-from sentence_transformers import SentenceTransformer
-from mistral_common.tokens.tokenizers.mistral import MistralTokenizer
-from mistral_common.protocol.instruct.messages import UserMessage
-from mistral_common.protocol.instruct.request import ChatCompletionRequest
-import os
+1. TOPSIS (Technique for Order Preference by Similarity to Ideal Solution)
+Why it fits perfectly:
 
-# Initialize tokenizer
-tokenizer = MistralTokenizer.v3()
+Handles your exact 4 criteria (Cost, Latency, Quality, Privacy)
+Very fast computation (sub-millisecond) - perfect for real-time routing
+Easy to implement in your Week 7-9 timeframe
+Naturally handles both "minimize" (cost, latency) and "maximize" (quality) criteria
 
-def get_tokens(text):
-    try:
-        req = ChatCompletionRequest(messages=[UserMessage(content=text)])
-        enc = tokenizer.encode_chat_completion(req)
-        return len(enc.tokens)
-    except:
-        return max(1, len(text) // 4)
+Implementation:
+python# Normalize your criteria matrix
+# Calculate ideal best (lowest cost, lowest latency, highest quality, lowest privacy risk)
+# Calculate ideal worst (highest cost, highest latency, lowest quality, highest privacy risk)
+# Rank models by distance to ideal best vs ideal worst
+2. Weighted Sum Model (Enhanced version of your current formula)
+Why it works:
 
-def get_embeddings(text):
-    # Use os.getcwd() to build path dynamically
-    base_path = os.getcwd()
-    model_path = os.path.join(base_path, "query-routing-systems-datasets", "model_artifacts", "sentence_transformer")
-    model = SentenceTransformer(model_path)
-    embedding = model.encode([text])
-    return embedding[0]
+You're already using this approach with your λ weights
+Can add constraint handling and dynamic weight adjustment
+Simple to understand and debug
+Fast execution
 
-# Test both functions
-test_query = "What is machine learning?"
-print(f"Current working directory: {os.getcwd()}")
-print(f"Query: '{test_query}'")
-print(f"Input tokens: {get_tokens(test_query)}")
-embedding = get_embeddings(test_query)
-print(f"Embedding shape: {embedding.shape}")
-print(f"First 5 values: {embedding[:5]}")
+Enhancement suggestions:
+python# Add constraint handling
+if privacy_risk > threshold: penalty = ∞
+if latency > SLA_limit: penalty = large_value
 
+# Dynamic weight adjustment based on query type
+if query_type == "summarization": λ_quality *= 1.5
+if query_type == "casual_chat": λ_cost *= 2.0
+3. Multi-Attribute Utility Theory (MAUT) with Utility Functions
+Perfect for your system because:
+
+Converts each criterion to 0-1 utility scores
+Handles non-linear preferences (e.g., latency under 100ms is great, over 500ms is terrible)
+Easy to tune based on Capital One's specific preferences
+
+Example utility functions:
+pythondef cost_utility(tokens, cost_per_token):
+    normalized_cost = (tokens * cost_per_token) / max_acceptable_cost
+    return max(0, 1 - normalized_cost)
+
+def latency_utility(latency_ms):
+    if latency_ms < 100: return 1.0
+    elif latency_ms < 300: return 0.8
+    elif latency_ms < 500: return 0.5
+    else: return 0.2
+4. Contextual Bandits (LinUCB) - For Phase 3
+Why it's powerful:
+
+Learns which models perform best for different query types
+Balances exploration (trying new models) vs exploitation (using known good models)
+Adapts to changing model performance over time
+Perfect for your "advanced features" phase
+
+How it works with your inputs:
+
+Context vector: [query_length, estimated_tokens, query_type_embedding, time_of_day]
+Reward: function of (actual_cost, actual_latency, user_satisfaction, privacy_compliance)
+
+5. Hybrid Decision Tree + Scoring
+Practical for your timeline:
+
+Phase 1: Simple decision tree for hard constraints
+Phase 2: Add scoring for soft preferences
+Phase 3: Machine learning enhancements
+
+Example logic:
+python# Hard constraints first
+if privacy_classification == "PII":
+    eligible_models = [models with high privacy compliance]
+elif estimated_tokens > 4000:
+    eligible_models = [models that handle long context]
+
+# Then score remaining models
+for model in eligible_models:
+    score = calculate_weighted_score(model, query_features)
+6. Multi-Criteria Decision Analysis (MCDA) with AHP
+Good for complex business requirements:
+
+Handles hierarchical decision criteria
+Can incorporate business rules (e.g., "Quality is 2x more important than cost for customer service queries")
+Transparent decision process for auditing
 ```
-
-```
-# Complete TokenEstimatorFeatureCollection with Kubeflow path and review fixes
-import re
-import string
-import pandas as pd
-import numpy as np
-from sklearn.preprocessing import LabelEncoder
-from mistral_common.tokens.tokenizers.mistral import MistralTokenizer
-from mistral_common.protocol.instruct.messages import UserMessage
-from mistral_common.protocol.instruct.request import ChatCompletionRequest
-from sentence_transformers import SentenceTransformer
-import os
-
-tokenizer = MistralTokenizer.v3()
-
-class TokenEstimatorFeatureCollection:
-    """
-    Feature collection class for token predictor.
-    Can be instantiated per request or used as singleton.
-    """
-    
-    def get_token_length(self, text):
-        """
-        Calculates the token length of the input text using Mistral tokenizer.
-        
-        Args:
-            text (str): The input text.
-            
-        Returns:
-            int: The number of tokens.
-        """
-        try:
-            req = ChatCompletionRequest(messages=[UserMessage(content=text)])
-            enc = tokenizer.encode_chat_completion(req)
-            return len(enc.tokens)
-        except Exception as e:
-            return max(1, len(text) // 4)
-    
-    def get_query_embedding(self, query_text):
-        """
-        Returns the embeddings for a given query text as a numpy array.
-        
-        Args:
-            query_text (str): The input query text.
-            
-        Returns:
-            numpy.ndarray: The embedding vector as an array.
-        """
-        # Use os.getcwd() to build path dynamically like the test that worked
-        base_path = os.getcwd()
-        model_path = os.path.join(base_path, "query-routing-systems-datasets", "model_artifacts", "sentence_transformer")
-        
-        model = SentenceTransformer(model_path)
-        embedding = model.encode(query_text)
-        return embedding
-```
-
-```
-# test_basic_functions.py
-from token_estimator_feature_collection import TokenEstimatorFeatureCollection
-
-def test_basic_functions():
-    # Initialize the class
-    feature_collector = TokenEstimatorFeatureCollection()
-    
-    # Test query
-    test_query = "What is machine learning and how does it work?"
-    
-    print("Testing Basic Token Estimator Functions")
-    print("=" * 50)
-    print(f"Query: '{test_query}'")
-    print("-" * 50)
-    
-    try:
-        # Test 1: Input tokens
-        print("Testing get_token_length()...")
-        input_tokens = feature_collector.get_token_length(test_query)
-        print(f"✅ Input tokens: {input_tokens}")
-        
-        # Test 2: Sentence embeddings  
-        print("\nTesting get_query_embedding()...")
-        embedding = feature_collector.get_query_embedding(test_query)
-        print(f"✅ Embedding shape: {embedding.shape}")
-        print(f"✅ Sample values: {embedding[:5]}")
-        
-        print(f"\n🎉 Both functions work! Ready for Chris's MLP integration.")
-        
-    except Exception as e:
-        print(f"❌ Error: {e}")
-        import traceback
-        traceback.print_exc()
-
-if __name__ == "__main__":
-    test_basic_functions()
-
-
-```
-Title: feat|test|chore|bug|doc: Add sentence transformer embeddings to token predictor
-Description
-Context
-Updated token predictor to use MiniLM sentence embeddings for better semantic understanding of queries, replacing basic feature engineering approach.
-Updates
-
-Added get_query_embedding() method to extract 384-dimensional sentence embeddings
-Updated get_token_length() to use Mistral tokenizer for consistency
-Configured model path to use Kubeflow volume storage (query-routing-systems-datasets/model_artifacts/)
-```
-
 ## About Me
 
 Hello! I'm Akhil Metukuru, passionate about leveraging technology to solve real-world problems and create impactful solutions. When I'm not coding or working on new projects, you might find me exploring new places, reading, or spending time with family and friends.
