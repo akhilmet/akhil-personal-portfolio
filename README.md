@@ -1,36 +1,47 @@
+# Token Predictor Development - Two Slide Presentation
 
-# Tech Incubator Final Presentation: User Query-Based Routing System
+## **Slide 1: Initial Development & Overfitting Challenge**
 
-## Agenda / Table of Contents
+### Token Estimator Development
 
-**01** **Project Introduction**
-Building an intelligent LLM routing system that optimizes cost, latency, quality, and privacy for user queries.
+**Objective:** Estimate the total tokens a model is likely to consume (input + output) before routing the prompt
 
-**02** **Token Estimator Development** 
-Machine learning approach to predict response token counts with enhanced accuracy over simple heuristics.
+**Initial Approach:**
+- Used to calculate total cost for querying each LLM
+- Essential component for Latency Prediction
 
-**03** **Latency Predictor Implementation**
-Hardware-based latency estimation system that utilizes token predictions for TTFT and full response timing.
+**Model Training Results:**
+- Initially trained Linear Regression, Random Forest, and XGBoost models to determine the best fit
+- Dataset comprised of 4000 NLP queries and 1000 coding question queries
+- **Challenge Identified:** Model was overfitting to the limited dataset
+- High variance in predictions across different query types
+- Poor generalization to unseen query patterns
 
-**04** **Privacy & Intent Classification**
-Automated classification systems for PII detection and query categorization to ensure compliance and routing.
-
-**05** **Decision Engine Architecture**
-Multi-objective optimization framework that balances all routing criteria using mathematical decision models.
-
-**06** **Results and Next Steps**
-Performance improvements achieved and roadmap for continued development and deployment.
+**Key Learning:** Need for larger, more diverse dataset and different modeling approach to achieve production-ready accuracy
 
 ---
 
-## Project Introduction
+## **Slide 2: Enhanced Approach with Magpie Dataset & MLP**
 
-### Problem Statement
-Capital One needed an intelligent system to route user queries to the most appropriate LLM model based on multiple criteria including cost optimization, latency requirements, quality expectations, and privacy compliance.
+### Token Estimator Enhancement - Precision Over Raw Accuracy
 
-### Our Solution
-We developed a comprehensive User Query-Based Routing System that analyzes incoming queries across multiple dimensions and uses advanced decision engines to select optimal models. The system integrates seamlessly with existing infrastructure while providing significant improvements in prediction accuracy and routing intelligence.
+**New Dataset & Architecture:**
+- Switched to **Magpie-Llama-3.1-Pro-DPO-100k dataset** (100,000 diverse instruction-response pairs)
+- Implemented **PyTorch MLP (Multi-Layer Perceptron)** with 4-layer neural network
+- **2 Core Features:** 384-dimensional sentence embeddings + sophisticated complexity score
 
+**Precision vs Accuracy Focus:**
+- **Previous Goal:** Lower MAE numbers at any cost → Led to overfitting
+- **New Goal:** Consistent, reliable predictions across diverse query types
+- **Result:** More precise predictions that generalize well to production scenarios
+
+**Architecture Benefits:**
+- **Semantic Understanding:** 384D embeddings capture deep linguistic patterns
+- **Production Ready:** No metadata dependencies, query-only approach  
+- **Robust Predictions:** Neural network handles varying query complexity effectively
+- **Consistent Performance:** Eliminates wild prediction swings (like 724 tokens for "What is Python?")
+
+**Key Achievement:** Transformed from overfitted narrow accuracy to robust precision across diverse real-world queries
 ---
 
 ## Project Milestones
