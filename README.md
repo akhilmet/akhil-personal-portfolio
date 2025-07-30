@@ -1,86 +1,77 @@
 ```
-1. TOPSIS (Technique for Order Preference by Similarity to Ideal Solution)
-Why it fits perfectly:
+# Tech Incubator Final Presentation: User Query-Based Routing System
 
-Handles your exact 4 criteria (Cost, Latency, Quality, Privacy)
-Very fast computation (sub-millisecond) - perfect for real-time routing
-Easy to implement in your Week 7-9 timeframe
-Naturally handles both "minimize" (cost, latency) and "maximize" (quality) criteria
+## Agenda / Table of Contents
 
-Implementation:
-python# Normalize your criteria matrix
-# Calculate ideal best (lowest cost, lowest latency, highest quality, lowest privacy risk)
-# Calculate ideal worst (highest cost, highest latency, lowest quality, highest privacy risk)
-# Rank models by distance to ideal best vs ideal worst
-2. Weighted Sum Model (Enhanced version of your current formula)
-Why it works:
+**01** **Project Introduction**
+Building an intelligent LLM routing system that optimizes cost, latency, quality, and privacy for user queries.
 
-You're already using this approach with your λ weights
-Can add constraint handling and dynamic weight adjustment
-Simple to understand and debug
-Fast execution
+**02** **Token Estimator Development** 
+Machine learning approach to predict response token counts with enhanced accuracy over simple heuristics.
 
-Enhancement suggestions:
-python# Add constraint handling
-if privacy_risk > threshold: penalty = ∞
-if latency > SLA_limit: penalty = large_value
+**03** **Latency Predictor Implementation**
+Hardware-based latency estimation system that utilizes token predictions for TTFT and full response timing.
 
-# Dynamic weight adjustment based on query type
-if query_type == "summarization": λ_quality *= 1.5
-if query_type == "casual_chat": λ_cost *= 2.0
-3. Multi-Attribute Utility Theory (MAUT) with Utility Functions
-Perfect for your system because:
+**04** **Privacy & Intent Classification**
+Automated classification systems for PII detection and query categorization to ensure compliance and routing.
 
-Converts each criterion to 0-1 utility scores
-Handles non-linear preferences (e.g., latency under 100ms is great, over 500ms is terrible)
-Easy to tune based on Capital One's specific preferences
+**05** **Decision Engine Architecture**
+Multi-objective optimization framework that balances all routing criteria using mathematical decision models.
 
-Example utility functions:
-pythondef cost_utility(tokens, cost_per_token):
-    normalized_cost = (tokens * cost_per_token) / max_acceptable_cost
-    return max(0, 1 - normalized_cost)
+**06** **Results and Next Steps**
+Performance improvements achieved and roadmap for continued development and deployment.
 
-def latency_utility(latency_ms):
-    if latency_ms < 100: return 1.0
-    elif latency_ms < 300: return 0.8
-    elif latency_ms < 500: return 0.5
-    else: return 0.2
-4. Contextual Bandits (LinUCB) - For Phase 3
-Why it's powerful:
+---
 
-Learns which models perform best for different query types
-Balances exploration (trying new models) vs exploitation (using known good models)
-Adapts to changing model performance over time
-Perfect for your "advanced features" phase
+## Project Introduction
 
-How it works with your inputs:
+### Problem Statement
+Capital One needed an intelligent system to route user queries to the most appropriate LLM model based on multiple criteria including cost optimization, latency requirements, quality expectations, and privacy compliance.
 
-Context vector: [query_length, estimated_tokens, query_type_embedding, time_of_day]
-Reward: function of (actual_cost, actual_latency, user_satisfaction, privacy_compliance)
+### Our Solution
+We developed a comprehensive User Query-Based Routing System that analyzes incoming queries across multiple dimensions and uses advanced decision engines to select optimal models. The system integrates seamlessly with existing infrastructure while providing significant improvements in prediction accuracy and routing intelligence.
 
-5. Hybrid Decision Tree + Scoring
-Practical for your timeline:
+---
 
-Phase 1: Simple decision tree for hard constraints
-Phase 2: Add scoring for soft preferences
-Phase 3: Machine learning enhancements
+## Project Milestones
 
-Example logic:
-python# Hard constraints first
-if privacy_classification == "PII":
-    eligible_models = [models with high privacy compliance]
-elif estimated_tokens > 4000:
-    eligible_models = [models that handle long context]
+### **Milestone 1: Custom Routing System Development**
+We built our own query routing system from scratch rather than using existing solutions like RouteLLM, establishing development infrastructure including GitHub repository setup and access to pre-trained models from Hugging Face. This foundational work enabled rapid prototyping and experimentation with different routing approaches tailored specifically to our requirements.
 
-# Then score remaining models
-for model in eligible_models:
-    score = calculate_weighted_score(model, query_features)
-6. Multi-Criteria Decision Analysis (MCDA) with AHP
-Good for complex business requirements:
+### **Milestone 2: Token Predictor Development**
+We replaced basic word-count heuristics with a machine learning model trained on the Magpie-Llama-3.1-Pro-DPO-100k dataset, achieving ~165 MAE improvement from ~230 MAE baseline. The model was distilled down to just two key features: input tokens and semantic analysis through vector embeddings, providing a clean and efficient prediction approach.
 
-Handles hierarchical decision criteria
-Can incorporate business rules (e.g., "Quality is 2x more important than cost for customer service queries")
-Transparent decision process for auditing
+### **Milestone 3: Hardware-Based Latency Estimator**
+We implemented a physics-based latency prediction system that utilizes A10 GPU specifications and token estimations to calculate both Time-To-First-Token (TTFT) and full response latency. The system provides accurate timing predictions essential for SLA compliance and user experience optimization.
+
+### **Milestone 4: Privacy Classification & Intent Detection**
+We integrated Capital One's DataProfiler tool for automated PII detection and developed intent classification capabilities to categorize queries by type and complexity. These components ensure regulatory compliance while enabling more intelligent routing decisions based on query characteristics.
+
+### **Milestone 5: Multi-Objective Decision Engine**
+We designed and implemented a sophisticated decision framework using the formula: min Objective = λ₁Cost + λ₂Latency - λ₃Quality + λ₄Privacy, with tunable weights based on business preferences. The system balances competing objectives while maintaining transparency in routing decisions.
+
+### **Milestone 6: Integration Testing & Documentation**
+We completed comprehensive system integration testing, performance validation, and created detailed documentation including deployment procedures and operational monitoring guidelines. The system is production-ready with robust error handling and fallback mechanisms.
+
+---
+
+## Results and Takeaways
+
+### Key Results
+- **Token Prediction Accuracy**: Achieved ~165 MAE improvement (from ~230 to ~165 MAE) using ML-based approach with streamlined features: input tokens and semantic analysis through vector embeddings
+- **System Integration**: Successfully integrated all components into a cohesive ensemble graph architecture that processes queries through multiple prediction stages
+- **Production Readiness**: Delivered a fully functional MVP with comprehensive documentation, error handling, and monitoring capabilities
+
+### Technical Learnings
+- **Feature Engineering Impact**: Distilling from 15+ features to just two key features (input tokens and semantic vector embeddings) maintained prediction accuracy while improving model simplicity and efficiency
+- **Architecture Benefits**: Ensemble graph design provided modularity and scalability while maintaining clean separation of concerns between prediction components
+- **Real-world Complexity**: Balancing multiple objectives (cost, latency, quality, privacy) requires sophisticated decision frameworks and careful weight tuning
+
+### Next Steps for Continued Development
+- **Token Prediction Model Enhancement**: Continue improving the token prediction accuracy through additional training data, refined semantic embeddings, and advanced ML techniques
+- **Advanced Decision Engines**: Implement contextual bandits and TOPSIS methods for adaptive learning and more sophisticated multi-criteria optimization
+- **Performance Optimization**: Add caching mechanisms and similarity search to reduce redundant computations and improve response times
+- **Expanded Model Support**: Extend routing capabilities to support additional LLM providers and model variants for increased flexibility and cost optimization opportunities
 ```
 ## About Me
 
