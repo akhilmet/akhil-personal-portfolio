@@ -14,7 +14,7 @@
 ### **Decision Context (4 Features):**
 - `estimated_tokens`: How long the response will be
 - `has_pii`: Whether query contains sensitive data
-- `quality_score`: How important accuracy is (0-1)
+- `quality_score`: Predicted quality score for how well a model would perform on this query (0-1)
 - `latency`: How quickly response is needed
 
 ---
@@ -27,7 +27,7 @@ def initial_routing(estimated_tokens, has_pii, quality_score, latency):
     if has_pii:
         return "llama-8b"  # ALWAYS local for PII (compliance requirement)
     elif quality_score > 0.8:
-        return "llama-70b"  # High quality needs → best model
+        return "llama-70b"  # High predicted quality → use best model
     elif estimated_tokens < 100:
         return "llama-8b"   # Short responses → cheap model
     else:
@@ -97,11 +97,11 @@ class DynamicRouter:
 - **Llama-70B**: 300+ tokens OR high-complexity regardless of length
 
 ### **Pattern Discovery: "Quality-Latency Trade-offs"**
-**Month 1**: `high_quality = True` → Always use Llama-70B
-**Month 6**: Learned nuanced quality needs
-- **Quality=0.9 + Latency<2s**: Mistral-8x7B (good enough, fast enough)
-- **Quality=0.95 + Any latency**: Llama-70B (accuracy critical)
-- **Quality<0.7**: Llama-8B (speed matters more)
+**Month 1**: `quality_score > 0.8` → Always use Llama-70B
+**Month 6**: Learned nuanced quality predictions
+- **Quality=0.9 + Latency<2s**: Mistral-8x7B (predicted high quality, fast enough)
+- **Quality=0.95 + Any latency**: Llama-70B (predicted excellent quality - worth the wait)
+- **Quality<0.7**: Llama-8B (predicted lower quality - speed over accuracy)
 
 ---
 
@@ -123,7 +123,6 @@ class DynamicRouter:
 - No manual tuning required - learns optimal weights automatically
 
 **Key Advantage**: Instead of guessing optimal routing rules, the system discovers them through real usage patterns and outcomes.
-
 ## About Me
 
 Hello! I'm Akhil Metukuru, passionate about leveraging technology to solve real-world problems and create impactful solutions. When I'm not coding or working on new projects, you might find me exploring new places, reading, or spending time with family and friends.
