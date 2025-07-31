@@ -11,11 +11,12 @@
 - **Mistral-8x7B**: Remote model (balanced performance)  
 - **Llama-70B**: Remote model (highest quality)
 
-### **Decision Context (4 Features):**
+### **Decision Context (5 Features):**
 - `estimated_tokens`: How long the response will be
 - `has_pii`: Whether query contains sensitive data
 - `quality_score`: Predicted quality score for how well a model would perform on this query (0-1)
 - `latency`: How quickly response is needed
+- `per_token_cost`: Cost per token for each model (varies by model)
 
 ---
 
@@ -23,13 +24,13 @@
 
 ### **Week 1: Simple Rules (Cold Start)**
 ```python
-def initial_routing(estimated_tokens, has_pii, quality_score, latency):
+def initial_routing(estimated_tokens, has_pii, quality_score, latency, per_token_cost):
     if has_pii:
         return "llama-8b"  # ALWAYS local for PII (compliance requirement)
     elif quality_score > 0.8:
         return "llama-70b"  # High predicted quality → use best model
-    elif estimated_tokens < 100:
-        return "llama-8b"   # Short responses → cheap model
+    elif estimated_tokens * per_token_cost['llama-8b'] < 0.01:  # Very cheap query
+        return "llama-8b"   # Use cheapest model for low-cost queries
     else:
         return "mistral-8x7b"  # Default balanced choice
 ```
@@ -37,10 +38,10 @@ def initial_routing(estimated_tokens, has_pii, quality_score, latency):
 ### **Month 3: Learned Patterns**
 The system discovers counter-intuitive patterns:
 
-**Discovery 1: Token Length Optimization**
-- **Initial Rule**: Long responses → Mistral-8x7B
-- **Learned Pattern**: Very long responses (>500 tokens) → Llama-70B is more cost-effective
-- **Why**: Llama-70B gets it right in one try vs. multiple Mistral attempts
+**Discovery 1: Cost-Efficiency Sweet Spots**
+- **Initial Rule**: Short responses → Llama-8B (cheapest per token)
+- **Learned Pattern**: Total cost matters more than per-token cost
+- **Why**: Llama-8B might be $0.01/token, but if it gives poor answers requiring follow-ups, total cost is higher than Mistral-8x7B at $0.03/token with complete first response
 
 **Discovery 2: Latency Surprises**
 - **Initial Rule**: Urgent queries → Local Llama-8B
@@ -63,11 +64,13 @@ class DynamicRouter:
     
     def choose_model(self, context):
         # Calculate confidence score for each model
+        # Context now includes: [tokens, has_pii, quality_score, latency, cost_per_token]
         scores = {}
         for model in self.models:
             base_score = self.predict_success(model, context)
             exploration_bonus = self.uncertainty_bonus(model, context)
-            scores[model] = base_score + exploration_bonus
+            cost_factor = self.calculate_cost_efficiency(model, context)
+            scores[model] = base_score + exploration_bonus + cost_factor
         
         return max(scores, key=scores.get)
     
@@ -89,12 +92,13 @@ class DynamicRouter:
 - **Discovery**: Local model gives wrong legal advice → costly mistakes
 - **New Strategy**: High-stakes PII → Llama-70B with extra security measures
 
-### **Pattern Discovery: "Length Sweet Spots"**
-**Month 1**: Simple token-based routing
-**Month 5**: Discovered optimal ranges for each model
-- **Llama-8B**: 0-50 tokens (quick facts)
-- **Mistral-8x7B**: 50-300 tokens (explanations, tutorials)  
-- **Llama-70B**: 300+ tokens OR high-complexity regardless of length
+### **Pattern Discovery: "Cost vs Quality Optimization"**
+**Month 1**: Always choose cheapest per-token model for budget queries
+**Month 5**: Learned total cost optimization beats per-token optimization
+- **Llama-8B**: $0.01/token, often needs 2-3 attempts = $0.02-0.03/token effective cost
+- **Mistral-8x7B**: $0.03/token, usually succeeds first try = $0.03/token effective cost  
+- **Llama-70B**: $0.08/token, almost always perfect first try = $0.08/token effective cost
+- **Discovery**: Middle-tier model often most cost-effective for medium-complexity queries
 
 ### **Pattern Discovery: "Quality-Latency Trade-offs"**
 **Month 1**: `quality_score > 0.8` → Always use Llama-70B
@@ -123,6 +127,8 @@ class DynamicRouter:
 - No manual tuning required - learns optimal weights automatically
 
 **Key Advantage**: Instead of guessing optimal routing rules, the system discovers them through real usage patterns and outcomes.
+
+
 ## About Me
 
 Hello! I'm Akhil Metukuru, passionate about leveraging technology to solve real-world problems and create impactful solutions. When I'm not coding or working on new projects, you might find me exploring new places, reading, or spending time with family and friends.
