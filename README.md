@@ -1,4 +1,48 @@
 ```
+Weight Selection Example Through LinUCB
+Traditional Static Approach:
+# Manual weight assignment - same for all queries
+weights = {
+    'cost_importance': 0.4,
+    'speed_importance': 0.3, 
+    'quality_importance': 0.3
+}
+LinUCB Dynamic Weight Discovery Example:
+Week 1 (Learning Phase):
+python# Query: "Debug Python code" (tokens=300, quality_scores=[0.6, 0.8, 0.9])
+# System tries Mistral → Good result
+# Updates: Mistral gets positive association with coding queries
+
+# Query: "Simple math" (tokens=50, quality_scores=[0.7, 0.7, 0.8])  
+# System tries Llama-70B → Expensive for simple task
+# Updates: Llama-70B gets negative association with low-token queries
+Month 3 (Pattern Recognition):
+
+# LinUCB has learned context-specific "effective weights":
+
+# For coding queries with medium tokens:
+learned_pattern_coding = {
+    'cost_importance': 0.2,     # Cost matters less for coding
+    'speed_importance': 0.2,    # Speed matters less for coding
+    'quality_importance': 0.6   # Quality matters most for coding
+}
+
+# For simple factual queries:
+learned_pattern_simple = {
+    'cost_importance': 0.6,     # Cost matters most for simple queries
+    'speed_importance': 0.3,    # Speed somewhat important
+    'quality_importance': 0.1   # Quality less critical
+}
+Key Insight: Instead of using fixed weights (0.4, 0.3, 0.3) for all queries, LinUCB automatically discovers that:
+
+Coding queries should weight quality heavily (0.6) and cost lightly (0.2)
+Simple queries should weight cost heavily (0.6) and quality lightly (0.1)
+
+The system learns optimal weight combinations for different query types automatically, eliminating the guesswork of manual weight tuning and discovering context-specific patterns we might never have thought to program explicitly.
+
+```
+
+```
 Contextual Multi-Armed Bandits - Code Logic
 Core Data Structures
 pythonclass ContextualBandit:
@@ -122,7 +166,7 @@ pythonweights = {
     'privacy_importance': 0.1
 }
 Token-Based Adjustments
-python# Simple queries - prioritize cost and speed
+Simple queries - prioritize cost and speed
 if tokens < 350:
     weights['cost_importance'] += 0.1
     weights['speed_importance'] += 0.1
@@ -153,8 +197,9 @@ if estimated_cost > 0.10:
     weights['speed_importance'] -= 0.075
 
 Optimization Formula
+
 Objective Function (Minimize)
-pythonfor each model:
+for each model:
     cost = tokens * model_cost_per_token
     speed = latency_ms / 1000  # Convert to seconds
     quality = quality_score   # 0-1 scale
@@ -166,8 +211,9 @@ pythonfor each model:
     )
 
 return model_with_lowest_score
+
 Model Costs
-pythonmodel_costs = {
+model_costs = {
     'llama-8b': 0.0001,      # $0.0001 per token (local)
     'mistral-8x7b': 0.0003,  # $0.0003 per token (remote)  
     'llama-70b': 0.0008      # $0.0008 per token (remote)
@@ -200,9 +246,9 @@ cost_per_token = 0.0002
 # 4. Route to "llama-8b"
 
 result = "llama-8b"  # Fast and cheap for simple queries
+
 Example 2: Creative Writing (300 tokens, big quality gap)
-python# Input  
-tokens = 300
+Input tokens = 300
 has_pii = False
 quality_scores = {'llama-8b': 0.3, 'mistral-8x7b': 0.6, 'llama-70b': 0.9}
 latency_scores = {'llama-8b': 600, 'mistral-8x7b': 1800, 'llama-70b': 2800}
@@ -217,7 +263,6 @@ cost_per_token = 0.0003
 # 6. Calculate scores for all models
 
 result = "mistral-8x7b" or "llama-70b"  # Depends on optimization
-
 ```
 ## About Me
 
