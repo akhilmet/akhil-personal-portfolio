@@ -1,4 +1,118 @@
 ```
+Contextual Multi-Armed Bandits - Code Logic
+Core Data Structures
+pythonclass ContextualBandit:
+    def __init__(self):
+        self.models = ['llama-8b', 'mistral-8x7b', 'llama-70b']
+        
+        # For each model, track:
+        self.A = {}  # Context covariance matrix (5x5)
+        self.b = {}  # Context-reward correlation vector (5x1)
+        
+        for model in self.models:
+            self.A[model] = np.eye(5)      # Identity matrix
+            self.b[model] = np.zeros(5)    # Zero vector
+        
+        self.alpha = 0.1  # Exploration parameter
+Context Vector Creation
+pythondef create_context(self, tokens, has_pii, quality_score, latency, cost):
+    """Convert query info into numerical vector"""
+    return np.array([
+        tokens / 1000,                    # Normalized tokens
+        1.0 if has_pii else 0.0,         # Binary PII flag
+        quality_score,                    # Already 0-1
+        latency / 10000,                  # Normalized latency (ms)
+        cost * 1000                       # Normalized cost
+    ])
+Model Selection (Upper Confidence Bound)
+pythondef select_model(self, context):
+    """Choose model using confidence + exploration"""
+    
+    # Hard constraint first
+    if context[1] == 1.0:  # PII = True
+        return 'llama-8b'
+    
+    best_model = None
+    best_score = -float('inf')
+    
+    for model in self.models:
+        # Calculate expected reward (what we think will happen)
+        A_inv = np.linalg.inv(self.A[model])
+        theta = A_inv.dot(self.b[model])
+        expected_reward = context.dot(theta)
+        
+        # Calculate confidence bonus (exploration)
+        confidence_bonus = self.alpha * np.sqrt(
+            context.dot(A_inv).dot(context)
+        )
+        
+        # Upper Confidence Bound = Expected + Bonus
+        ucb_score = expected_reward + confidence_bonus
+        
+        if ucb_score > best_score:
+            best_score = ucb_score
+            best_model = model
+    
+    return best_model
+Learning from Outcomes
+pythondef update_model(self, model_used, context, actual_outcome):
+    """Learn from what actually happened"""
+    
+    # Calculate reward based on actual performance
+    reward = self.calculate_reward(actual_outcome)
+    
+    # Update model parameters
+    self.A[model_used] += np.outer(context, context)  # Update covariance
+    self.b[model_used] += reward * context            # Update correlation
+    
+    # Gradually reduce exploration over time
+    self.alpha = max(0.01, self.alpha * 0.999)
+
+def calculate_reward(self, outcome):
+    """Convert actual performance to reward (-1 to +1)"""
+    cost_efficiency = min(outcome['expected_cost'] / outcome['actual_cost'], 2.0)
+    speed_efficiency = min(outcome['expected_latency'] / outcome['actual_latency'], 2.0)
+    quality_achievement = outcome['actual_quality']
+    
+    # Weighted combination
+    reward = (
+        0.4 * (cost_efficiency - 1.0) +      # Cost bonus/penalty
+        0.3 * (speed_efficiency - 1.0) +     # Speed bonus/penalty  
+        0.3 * (quality_achievement - 0.5)    # Quality bonus/penalty
+    )
+    
+    return np.clip(reward, -1, 1)  # Keep in [-1, 1] range
+Complete Usage Flow
+pythondef route_query(self, tokens, has_pii, quality_score, latency, cost):
+    """Main routing function"""
+    
+    # 1. Create context vector
+    context = self.create_context(tokens, has_pii, quality_score, latency, cost)
+    
+    # 2. Select model using UCB
+    chosen_model = self.select_model(context)
+    
+    # 3. Execute query and get results
+    actual_outcome = self.execute_query(chosen_model, query)
+    
+    # 4. Learn from the outcome
+    self.update_model(chosen_model, context, actual_outcome)
+    
+    return chosen_model
+
+Learning Evolution Example
+# Week 1: High exploration (alpha = 0.1)
+# Confidence bonuses are large → tries different models frequently
+
+# Month 3: Reduced exploration (alpha ≈ 0.05)  
+# More confident in decisions → mostly exploits learned patterns
+
+# Month 6: Minimal exploration (alpha ≈ 0.01)
+# Very confident → only explores when genuinely uncertain
+```
+
+
+```
 Dynamic Weight Adjustment Logic
 Base Weights
 pythonweights = {
