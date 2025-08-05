@@ -1,4 +1,8 @@
 ```
+Thanks Mo and the whole team for an amazing summer - you all made this internship feel way more like being part of a real team than just another intern project, and I learned so much from working with everyone. The support and feedback you gave me throughout building this routing system was incredible and definitely pushed me to do better work than I thought I could. Really excited to see where this project goes and hopefully it ends up being useful for the broader AI work at Capital One.RetryClaude can make mistakes. Please double-check responses.
+```
+
+```
 print("""Test Predictions:
 Query: Explain the water cycle...
 Predicted Tokens: 233.3
