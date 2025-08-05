@@ -1,4 +1,38 @@
 ```
+print("""Test Predictions:
+Query: Explain the water cycle...
+Predicted Tokens: 233.3
+Predicted Category: Short
+------------------------------------------------------------
+Query: Implement a neural network from scratch using Pyth...
+Predicted Tokens: 850.4
+Predicted Category: Long
+------------------------------------------------------------
+Query: How do I sort a list?...
+Predicted Tokens: 487.5
+Predicted Category: Short
+------------------------------------------------------------
+Query: Explain the differences between supervised and uns...
+Predicted Tokens: 560.7
+Predicted Category: Short
+------------------------------------------------------------
+Query: tell me about Capital One...
+Predicted Tokens: 383.5
+Predicted Category: Short
+------------------------------------------------------------
+Query: Who is Richard Fairbank?...
+Predicted Tokens: 362.9
+Predicted Category: Short
+------------------------------------------------------------
+Query: How to create a output token predictor model?...
+Predicted Tokens: 877.0
+Predicted Category: Long""")
+
+
+```
+
+
+```
 ---
 config:
   theme: redux
