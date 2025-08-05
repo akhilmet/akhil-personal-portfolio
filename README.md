@@ -1,4 +1,42 @@
 ```
+---
+config:
+  theme: redux
+---
+flowchart LR
+    A["Query From Query Service"] --> B["Route Orchestrator"]
+    B --> C1(("λ1")) & D1(("λ2")) & E1(("λ3"))
+    C1 --> C["Token Predictor"]
+    D1 --> D["Intent Classifier"]
+    E1 --> E["Privacy Classifier"]
+    C --> F1(("λ4"))
+    F1 --> F["Latency Predictor"]
+    D --> G["Quality Estimator"]
+    F --> H["Decision System"]
+    G --> H
+    E --> H
+    H --> I{"Model Call"}
+    I --> J["Response"]
+    style A fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    style B fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    style C1 fill:#ffcdd2,stroke:#d32f2f,stroke-width:2px
+    style D1 fill:#ffcdd2,stroke:#d32f2f,stroke-width:2px
+    style E1 fill:#ffcdd2,stroke:#d32f2f,stroke-width:2px
+    style C fill:#FFE0B2,stroke:#f57c00,stroke-width:2px
+    style D fill:#FFF9C4,stroke:#f57c00,stroke-width:2px
+    style E fill:#FFE0B2,stroke:#f57c00,stroke-width:2px
+    style F1 fill:#ffcdd2,stroke:#d32f2f,stroke-width:2px
+    style F fill:#FFE0B2,stroke:#f57c00,stroke-width:2px
+    style G fill:#FFE0B2,stroke:#388e3c,stroke-width:2px
+    style H fill:#ffebee,stroke:#d32f2f,stroke-width:2px
+    style I fill:#fff8e1,stroke:#fbc02d,stroke-width:2px
+    style J fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+
+```
+
+
+
+```
 Weight Selection Example Through LinUCB
 Traditional Static Approach:
 # Manual weight assignment - same for all queries
